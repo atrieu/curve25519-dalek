@@ -7,9 +7,9 @@ public import Mathlib.Tactic.LinearCombination
 
 /-! # Multi-limb integers
 
-The functions of `bingcd.rs` on four limbs are specified by functions on vectors of words, for
-any bitwidth `w` and any number `n` of limbs: `Limbs w n := Vector (Word w) n`, least
-significant limb first, with the value `Limbs.toNat`. -/
+The functions of `bingcd.rs` on four limbs, and on eight for the 32-bit backend, are specified
+by functions on vectors of words, for any bitwidth `w` and any number `n` of limbs:
+`Limbs w n := Vector (Word w) n`, least significant limb first, with the value `Limbs.toNat`. -/
 
 @[expose] public section
 

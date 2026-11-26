@@ -22,7 +22,7 @@ private theorem toNat_five (x0 x1 x2 x3 x4 : Word 64) :
 /-- `Limbs.shr` is a division by `2 ^ k`. On five 64-bit limbs and for `0 < k < 64`, each limb
 of the quotient is a combination of two shifts, as in the code: the two forms have the same
 value. -/
-private theorem shr_five (r0 r1 r2 r3 c : Word 64) {k : ℕ} (hk0 : 0 < k) (hk : k < 64) :
+private theorem shr_five (r0 r1 r2 r3 c : Word 64) {k : ℕ} (hk : k < 64) :
     (Limbs.shr #v[r0, r1, r2, r3, c] k).1 =
       #v[(r0 >>> k) ||| (r1 <<< (64 - k)), (r1 >>> k) ||| (r2 <<< (64 - k)),
         (r2 >>> k) ||| (r3 <<< (64 - k)), (r3 >>> k) ||| (c <<< (64 - k)), c >>> k] := by
@@ -32,25 +32,25 @@ private theorem shr_five (r0 r1 r2 r3 c : Word 64) {k : ℕ} (hk0 : 0 < k) (hk :
   have e3 : (2 : ℕ) ^ 192 = (2 ^ 64) ^ 3 := by norm_num
   have e4 : (2 : ℕ) ^ 256 = (2 ^ 64) ^ 4 := by norm_num
   rw [Limbs.toNat_shr_fst _ hk, toNat_five, toNat_five]
-  simp only [BitVec.toNat_ushiftRight_or_shiftLeft _ _ hk0 hk, BitVec.toNat_ushiftRight,
+  simp only [BitVec.toNat_ushiftRight_or_shiftLeft _ _ hk, BitVec.toNat_ushiftRight,
     Nat.shiftRight_eq_div_pow]
   rw [e2, e3, e4]
   exact Nat.div_five_digits (Nat.two_pow_pos k) hW _ _ _ _ _
 
 /-- The low four limbs of a five-limb value shifted right by `k` bits. -/
-private theorem shr_push_pop (r0 r1 r2 r3 c : Word 64) {k : ℕ} (hk0 : 0 < k) (hk : k < 64) :
+private theorem shr_push_pop (r0 r1 r2 r3 c : Word 64) {k : ℕ} (hk : k < 64) :
     (Limbs.shr ((#v[r0, r1, r2, r3] : Limbs 64 4).push c) k).1.pop =
       #v[(r0 >>> k) ||| (r1 <<< (64 - k)), (r1 >>> k) ||| (r2 <<< (64 - k)),
         (r2 >>> k) ||| (r3 <<< (64 - k)), (r3 >>> k) ||| (c <<< (64 - k))] := by
   have h : (#v[r0, r1, r2, r3] : Limbs 64 4).push c = #v[r0, r1, r2, r3, c] := rfl
-  rw [h, shr_five _ _ _ _ _ hk0 hk]
+  rw [h, shr_five _ _ _ _ _ hk]
   rfl
 
 /-- The top limb of a five-limb value shifted right by `k` bits. -/
-theorem shr_push_back (r0 r1 r2 r3 c : Word 64) {k : ℕ} (hk0 : 0 < k) (hk : k < 64) :
+theorem shr_push_back (r0 r1 r2 r3 c : Word 64) {k : ℕ} (hk : k < 64) :
     (Limbs.shr ((#v[r0, r1, r2, r3] : Limbs 64 4).push c) k).1.back = c >>> k := by
   have h : (#v[r0, r1, r2, r3] : Limbs 64 4).push c = #v[r0, r1, r2, r3, c] := rfl
-  rw [h, shr_five _ _ _ _ _ hk0 hk]
+  rw [h, shr_five _ _ _ _ _ hk]
   rfl
 
 /-- The shift of a five-limb value, for any amount `0 < S < 64`. -/
@@ -62,7 +62,7 @@ theorem shr_low_spec (S : U32) (r : Array U64 4#usize) (c : U64) (hS0 : 0 < S.va
   step*
   have h3 : i3.val = 64 - S.val := by scalar_tac
   simp only [L4_make]
-  rw [L4, shr_push_pop _ _ _ _ _ hS0 hS]
+  rw [L4, shr_push_pop _ _ _ _ _ hS]
   simp [*]
 
 end Curve25519Dalek.backend.serial.u64.bingcd

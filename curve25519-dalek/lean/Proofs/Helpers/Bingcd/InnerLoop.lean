@@ -24,7 +24,7 @@ Inversion Algorithm*, ITP 2026). Because the decisions are taken on approximatio
 `B` can become negative.
 
 The parameter `K` is the number of inner steps; it is `k - 1` in the papers. It is `31` in
-`bingcd.rs`. -/
+`bingcd.rs` for the 64-bit backend, and `15` for the 32-bit one. -/
 
 @[expose] public section
 

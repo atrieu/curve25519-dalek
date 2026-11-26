@@ -571,7 +571,7 @@ mod test {
     }
 
     #[test]
-    #[cfg(all(curve25519_dalek_bits = "64", not(curve25519_dalek_backend = "fiat")))]
+    #[cfg(not(curve25519_dalek_backend = "fiat"))]
     fn invert_bingcd_matches_invert() {
         // the constant of the other tests, zero, one and minus one
         let a = FieldElement::from_bytes(&A_BYTES);
@@ -585,7 +585,7 @@ mod test {
     }
 
     #[test]
-    #[cfg(all(curve25519_dalek_bits = "64", not(curve25519_dalek_backend = "fiat")))]
+    #[cfg(not(curve25519_dalek_backend = "fiat"))]
     fn div_bingcd_matches_mul_invert() {
         let a = FieldElement::from_bytes(&A_BYTES);
         assert_eq!(
@@ -598,7 +598,7 @@ mod test {
         assert_eq!(FieldElement::ZERO.div_bingcd(&a), FieldElement::ZERO);
     }
 
-    #[cfg(all(curve25519_dalek_bits = "64", not(curve25519_dalek_backend = "fiat")))]
+    #[cfg(not(curve25519_dalek_backend = "fiat"))]
     proptest::proptest! {
         /// `invert_bingcd` agrees with `invert` on any element, also with unreduced limbs.
         #[test]

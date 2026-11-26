@@ -20,7 +20,7 @@ theorem redc_tail_spec (S : U32) (r : Array U64 4#usize) (c : U64) (m : Array U6
   step*
   have hmsb := msb_of_shr63 c i i_post
   have hback : (Limbs.shr ((L4 r).push c.bv) S.val).1.back = c.bv >>> S.val := by
-    rw [L4, shr_push_back _ _ _ _ _ hS0 hS]
+    rw [L4, shr_push_back _ _ _ _ _ hS]
   have htop : (top != 0#u64) = decide ((c.bv >>> S.val).toNat ≠ 0) := by
     have hiff : top = 0#u64 ↔ top.val = 0 :=
       ⟨fun h => by rw [h]; rfl, fun h => UScalar.eq_of_val_eq h⟩

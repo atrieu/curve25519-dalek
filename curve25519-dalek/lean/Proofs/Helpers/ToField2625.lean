@@ -18,12 +18,13 @@ on `toField : FieldElement2625 → ZMod p` (the same bridges as for `FieldElemen
 lemma per spec shape: `toField_mul_of_mod` for `mul`, `toField_sq_of_mod` for `square`,
 `toField_two_mul_sq_of_mod` for `square2`, `toField_pow_of_mod` for `pow2k`, `toField_add_of_limbs`
 for `add`, `toField_sub_of_mod` for `sub`, `toField_neg_of_mod` for `neg`/`negate`,
-`toField_inv_of_mod` for `invert`, `toField_eq_of_mod_eq` for `reduce`, `toField_repeat_zero` for
-`zeroize`, `toField_eq_decodeU_of_mod` for `from_bytes`, `toField_val` for `to_bytes`,
-`eq_one_iff_isNeg_toField` for `is_negative`, `eq_one_iff_toField_eq_zero` for `is_zero`,
-`eq_one_iff_toField_eq` for `ct_eq`, `exists_sq_mul_mod_iff_isSquare_div` for the square-root tests,
-and `sqrtRatioM1_eq_of_spec`, `sqrtRatioM1_one_eq_of_spec`: `sqrt_ratio_i` and `invsqrt` compute RFC
-9496's `sqrtRatioM1`. -/
+`toField_inv_of_mod` for `invert`, `toField_div_of_mod` for `div_bingcd` (`mod_of_toField_inv` and
+`mod_of_toField_div` go the other way, from the field to the congruences), `toField_eq_of_mod_eq`
+for `reduce`, `toField_repeat_zero` for `zeroize`, `toField_eq_decodeU_of_mod` for `from_bytes`,
+`toField_val` for `to_bytes`, `eq_one_iff_isNeg_toField` for `is_negative`,
+`eq_one_iff_toField_eq_zero` for `is_zero`, `eq_one_iff_toField_eq` for `ct_eq`,
+`exists_sq_mul_mod_iff_isSquare_div` for the square-root tests, and `sqrtRatioM1_eq_of_spec`,
+`sqrtRatioM1_one_eq_of_spec`: `sqrt_ratio_i` and `invsqrt` compute RFC 9496's `sqrtRatioM1`. -/
 
 open Aeneas Aeneas.Std curve25519
 
@@ -127,6 +128,42 @@ theorem toField_inv_of_mod {r a : FieldElement2625}
     push_cast at h'
     rw [toField_def, toField_def]
     exact eq_inv_of_mul_eq_one_left h'
+
+/-- The converse of `toField_inv_of_mod`: an inverse in the field, as the congruences of
+`invert_spec`. -/
+theorem mod_of_toField_inv {r a : FieldElement2625} (h : r.toField = a.toField⁻¹) :
+    (a.asNat % p ≠ 0 → r.asNat * a.asNat % p = 1) ∧ (a.asNat % p = 0 → r.asNat % p = 0) := by
+  refine ⟨fun ha => ?_, fun ha => ?_⟩
+  · have ha' : a.toField ≠ 0 := fun h0 => ha (toField_eq_zero_iff.mp h0)
+    have hone : ((r.asNat * a.asNat : ℕ) : ZMod p) = ((1 : ℕ) : ZMod p) := by
+      rw [Nat.cast_mul, ← toField_def, ← toField_def, h, inv_mul_cancel₀ ha', Nat.cast_one]
+    rw [(ZMod.natCast_eq_natCast_iff' _ _ _).mp hone, one_mod_p]
+  · rw [toField_eq_zero_iff.mpr ha, inv_zero] at h
+    exact toField_eq_zero_iff.mp h
+
+/-- The shape of `div_bingcd_spec`: the quotient, `0` for a divisor `0` (Lean's `x / 0 = 0`). -/
+theorem toField_div_of_mod {r a b : FieldElement2625}
+    (h1 : b.asNat % p ≠ 0 → r.asNat * b.asNat % p = a.asNat % p)
+    (h0 : b.asNat % p = 0 → r.asNat % p = 0) : r.toField = a.toField / b.toField := by
+  by_cases hb : b.asNat % p = 0
+  · rw [toField_eq_zero_iff.mpr (h0 hb), toField_eq_zero_iff.mpr hb, div_zero]
+  · have hb' : b.toField ≠ 0 := fun h => hb (toField_eq_zero_iff.mp h)
+    have h' := natCast_eq_natCast_of_mod_eq (h1 hb)
+    push_cast at h'
+    rw [eq_div_iff hb', toField_def, toField_def, toField_def]
+    exact h'
+
+/-- The converse of `toField_div_of_mod`: a quotient in the field, as congruences. -/
+theorem mod_of_toField_div {r a b : FieldElement2625} (h : r.toField = a.toField / b.toField) :
+    (b.asNat % p ≠ 0 → r.asNat * b.asNat % p = a.asNat % p) ∧
+      (b.asNat % p = 0 → r.asNat % p = 0) := by
+  refine ⟨fun hb => ?_, fun hb => ?_⟩
+  · have hb' : b.toField ≠ 0 := fun h0 => hb (toField_eq_zero_iff.mp h0)
+    have hmul : ((r.asNat * b.asNat : ℕ) : ZMod p) = ((a.asNat : ℕ) : ZMod p) := by
+      rw [Nat.cast_mul, ← toField_def, ← toField_def, ← toField_def, h, div_mul_cancel₀ _ hb']
+    exact (ZMod.natCast_eq_natCast_iff' _ _ _).mp hmul
+  · rw [toField_eq_zero_iff.mpr hb, div_zero] at h
+    exact toField_eq_zero_iff.mp h
 
 /-- The shape of `invert_batch_spec` (entry by entry): the inverse, with zeros left in place, so
 `0⁻¹ = 0`; limbs `< 2^26` in, `< 2^26` out. -/

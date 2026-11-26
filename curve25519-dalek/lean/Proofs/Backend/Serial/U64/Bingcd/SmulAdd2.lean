@@ -21,7 +21,8 @@ private theorem smulAdd2_eq (a b f g c : Word 64) :
       c.signExtend 128 =
       BitVec.ofInt 128 ((a.toNat : ℤ) * f.toInt + (b.toNat : ℤ) * g.toInt + c.toInt) := by
     rw [BitVec.ofInt_add, BitVec.ofInt_add, BitVec.ofInt_mul, BitVec.ofInt_mul,
-      ← BitVec.setWidth_eq_ofInt_toNat, ← BitVec.setWidth_eq_ofInt_toNat]
+      ← BitVec.setWidth_eq_ofInt_toNat (w := 64) (by norm_num),
+      ← BitVec.setWidth_eq_ofInt_toNat (w := 64) (by norm_num)]
     rfl
   rw [hZ]
   unfold Word.smulAdd2

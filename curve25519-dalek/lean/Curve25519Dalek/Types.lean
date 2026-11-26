@@ -532,6 +532,44 @@ Unit
 @[reducible]
 def scalar.HalfWidthScalar := scalar.Scalar
 
+/-- [curve25519_dalek::backend::serial::u32::bingcd::Inner]
+    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 86:0-91:1
+    Visibility: public -/
+structure backend.serial.u32.bingcd.Inner where
+  abar : Std.U32
+  bbar : Std.U32
+  fg0 : Std.U32
+  fg1 : Std.U32
+
+/-- [curve25519_dalek::backend::serial::u32::bingcd::Matrix]
+    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 95:0-100:1
+    Visibility: public -/
+structure backend.serial.u32.bingcd.Matrix where
+  f0 : Std.U32
+  g0 : Std.U32
+  f1 : Std.U32
+  g1 : Std.U32
+
+/-- [curve25519_dalek::backend::serial::u32::bingcd::Tail]
+    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 158:0-165:1
+    Visibility: public -/
+structure backend.serial.u32.bingcd.Tail where
+  a : Std.U32
+  b : Std.U32
+  f0 : Std.U32
+  g0 : Std.U32
+  f1 : Std.U32
+  g1 : Std.U32
+
+/-- [curve25519_dalek::backend::serial::u32::bingcd::State]
+    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 431:0-436:1
+    Visibility: public -/
+structure backend.serial.u32.bingcd.State where
+  a : Array Std.U32 8#usize
+  u : Array Std.U32 8#usize
+  b : Array Std.U32 8#usize
+  v : Array Std.U32 8#usize
+
 /-- [curve25519_dalek::backend::serial::u32::scalar::Scalar29]
     Source: 'curve25519-dalek/src/backend/serial/u32/scalar.rs', lines 25:0-25:34
     Visibility: public -/
