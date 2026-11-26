@@ -4,7 +4,8 @@ public import Proofs.Curve25519.X25519
 public import Curve25519Dalek.Funs
 public import Proofs.Representation.Edwards
 public import Proofs.Representation.Montgomery
-public import Proofs.Field.Invert
+public import Proofs.Backend.Serial.U32.Field.DivBingcd
+public import Proofs.Backend.Serial.U64.Field.DivBingcd
 import Proofs.Backend.Serial.U64.Field.MinusOne
 import Proofs.Backend.Serial.U64.Field.FromBytes
 import Proofs.Edwards.Decompress
@@ -83,8 +84,7 @@ variable (B : Backend)
     let one ← B.constOne
     let fe1 ← B.sub u one
     let fe2 ← B.add u one
-    let fe3 ← B.invert fe2
-    let y ← B.mul fe1 fe3
+    let y ← B.div fe1 fe2
     let y_bytes ← B.toBytes y
     let i ← sign <<< 7#i32
     let i1 ← Array.index_usize y_bytes 31#usize
@@ -96,8 +96,8 @@ open scoped Helpers.IndexStep Helpers.UpdateStep in
 /-- `toEdwardsTail`: `none` for `u = -1`, otherwise the lenient decoding of `y = (u - 1) / (u + 1)`
 with sign bit `sign mod 2`, for a `decompress` with the spec of `CompressedEdwardsY::decompress`
 (model `toPt`, invariant `Good`). -/
-theorem toEdwardsTail_spec (hadd : B.AddSpec) (hsub : B.SubSpec) (hmul : B.MulSpec)
-    (heq : B.EqSpec) (hone : B.OneSpec) (hinv : B.InvertSpec)
+theorem toEdwardsTail_spec (hadd : B.AddSpec) (hsub : B.SubSpec)
+    (heq : B.EqSpec) (hone : B.OneSpec) (hdiv : B.DivSpec)
     (htb : B.ToBytesSpec) {E : Type} (decompress : edwards.CompressedEdwardsY → Result (Option E))
     (toPt : E → edwards.Point) (Good : E → Prop) (minusOne : Result B.F)
     (hm1 : minusOne ⦃ (r : B.F) => B.toField r = -1 ⦄)
@@ -126,8 +126,7 @@ theorem toEdwardsTail_spec (hadd : B.AddSpec) (hsub : B.SubSpec) (hmul : B.MulSp
     rintro one ⟨hone1, honeb⟩
     step with hsub u one (B.red_mulIn hu) (B.red_mulIn honeb) as ⟨fe1, fe1_post, fe1b⟩
     step with hadd u one hu honeb as ⟨fe2, fe2_post, fe2b⟩
-    step with hinv fe2 (B.sum2_sqIn fe2b) as ⟨fe3, fe3_post, fe3b⟩
-    step with hmul fe1 fe3 (B.red_mulIn fe1b) (B.red_mulIn fe3b) as ⟨y, y_post, yb⟩
+    step with hdiv fe1 fe2 as ⟨y, y_post, yb⟩
     step with htb y as ⟨y_bytes, y_bytes_post⟩
     step as ⟨i, i_post, i_bv⟩
     step as ⟨i1, i1_post⟩
@@ -139,7 +138,7 @@ theorem toEdwardsTail_spec (hadd : B.AddSpec) (hsub : B.SubSpec) (hmul : B.MulSp
     congr 1
     -- the value of the bytes: the canonical `y` with the sign in bit `255`
     have hy : B.toField y = (B.toField u - 1) / (B.toField u + 1) := by
-      rw [y_post, fe1_post, fe3_post, fe2_post, hone1, div_eq_mul_inv]
+      rw [y_post, fe1_post, fe2_post, hone1]
     have hyb : y_bytes.asNat 8 = ((B.toField u - 1) / (B.toField u + 1)).val := by
       rw [y_bytes_post, ← hy]
     have htop := montgomery.MontgomeryPoint.top_byte_lt y_bytes
@@ -241,8 +240,8 @@ theorem «64bit-tables».to_edwards_spec (self : MontgomeryPoint) (sign : U8) :
       exact eq_neg_of_add_eq_zero_left h
   have hU' : Backend.U64.toField u = decodeUCoordinate self.toVector := hU
   apply spec_mono (Backend.toEdwardsTail_spec Backend.U64 Backend.U64.add_spec Backend.U64.sub_spec
-    Backend.U64.mul_spec Backend.U64.eq_spec Backend.U64.one_spec
-    Backend.U64.invert_spec Backend.U64.to_bytes_spec _
+    Backend.U64.eq_spec Backend.U64.one_spec
+    Backend.U64.div_spec Backend.U64.to_bytes_spec _
     edwards.EdwardsPoint.«64bit-tables».toPoint
     (fun q => q.OnCurve ∧ q.LimbsLt 52) _ hm1
     (fun s => by
@@ -287,8 +286,8 @@ theorem «32bit-tables».to_edwards_spec (self : MontgomeryPoint) (sign : U8) :
       exact eq_neg_of_add_eq_zero_left h
   have hU' : Backend.U32.toField u = decodeUCoordinate self.toVector := hU
   apply spec_mono (Backend.toEdwardsTail_spec Backend.U32 Backend.U32.add_spec Backend.U32.sub_spec
-    Backend.U32.mul_spec Backend.U32.eq_spec Backend.U32.one_spec
-    Backend.U32.invert_spec Backend.U32.to_bytes_spec _
+    Backend.U32.eq_spec Backend.U32.one_spec
+    Backend.U32.div_spec Backend.U32.to_bytes_spec _
     edwards.EdwardsPoint.«32bit-tables».toPoint
     (fun q => q.OnCurve ∧ q.LimbsLt 26) _ hm1
     (fun s => by
@@ -334,8 +333,8 @@ theorem «64bit-notables».to_edwards_spec (self : MontgomeryPoint) (sign : U8) 
       exact eq_neg_of_add_eq_zero_left h
   have hU' : Backend.U64.toField u = decodeUCoordinate self.toVector := hU
   apply spec_mono (Backend.toEdwardsTail_spec Backend.U64 Backend.U64.add_spec Backend.U64.sub_spec
-    Backend.U64.mul_spec Backend.U64.eq_spec Backend.U64.one_spec
-    Backend.U64.invert_spec Backend.U64.to_bytes_spec _
+    Backend.U64.eq_spec Backend.U64.one_spec
+    Backend.U64.div_spec Backend.U64.to_bytes_spec _
     edwards.EdwardsPoint.«64bit-notables».toPoint
     (fun q => q.OnCurve ∧ q.LimbsLt 52) _ hm1
     (fun s => by
@@ -381,8 +380,8 @@ theorem «32bit-notables».to_edwards_spec (self : MontgomeryPoint) (sign : U8) 
       exact eq_neg_of_add_eq_zero_left h
   have hU' : Backend.U32.toField u = decodeUCoordinate self.toVector := hU
   apply spec_mono (Backend.toEdwardsTail_spec Backend.U32 Backend.U32.add_spec Backend.U32.sub_spec
-    Backend.U32.mul_spec Backend.U32.eq_spec Backend.U32.one_spec
-    Backend.U32.invert_spec Backend.U32.to_bytes_spec _
+    Backend.U32.eq_spec Backend.U32.one_spec
+    Backend.U32.div_spec Backend.U32.to_bytes_spec _
     edwards.EdwardsPoint.«32bit-notables».toPoint
     (fun q => q.OnCurve ∧ q.LimbsLt 26) _ hm1
     (fun s => by

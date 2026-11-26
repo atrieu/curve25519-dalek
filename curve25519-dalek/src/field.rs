@@ -258,7 +258,7 @@ impl FieldElement {
         assert!(bool::from(!acc.is_zero()));
 
         // Compute the inverse of all products
-        acc = acc.invert();
+        acc = acc.invert_bingcd();
 
         // Pass through the vector backwards to compute the inverses
         // in place
@@ -280,6 +280,9 @@ impl FieldElement {
     /// This function returns zero on input zero.
     #[rustfmt::skip] // keep alignment of explanatory comments
     #[allow(clippy::let_and_return)]
+    // The serial backends invert with `invert_bingcd`: this is what the tests compare it with,
+    // and what the fiat backends use.
+    #[allow(dead_code)]
     pub(crate) fn invert(&self) -> FieldElement {
         // The bits of p-2 = 2^255 -19 -2 are 11010111111...11.
         //
@@ -425,6 +428,19 @@ impl FieldElement {
         }
 
         result
+    }
+}
+
+/// The fiat backends have no binary GCD: for them `invert_bingcd` and `div_bingcd` are the
+/// addition chain of `invert`.
+#[cfg(curve25519_dalek_backend = "fiat")]
+impl FieldElement {
+    pub(crate) fn invert_bingcd(&self) -> FieldElement {
+        self.invert()
+    }
+
+    pub(crate) fn div_bingcd(&self, rhs: &FieldElement) -> FieldElement {
+        self * &rhs.invert()
     }
 }
 

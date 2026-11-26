@@ -7,7 +7,8 @@ import Proofs.Backend.Serial.U64.Field.Add
 import Proofs.Backend.Serial.U64.Field.Mul
 import Proofs.Backend.Serial.U64.Field.Sub
 import Proofs.Backend.Serial.U64.Field.ToBytes
-import Proofs.Field.Invert
+import Proofs.Backend.Serial.U32.Field.DivBingcd
+import Proofs.Backend.Serial.U64.Field.DivBingcd
 import Proofs.Helpers.EdwardsMontgomery
 import Proofs.Helpers.ToField
 import Proofs.Backend.Serial.U32.Field.Add
@@ -20,9 +21,9 @@ public section
 
 /-! # `EdwardsPoint::to_montgomery`
 
-The code computes `u = (Z + Y) / (Z - Y)` (`0` when `Z = Y`, since `invert 0 = 0`), which is
-`(1 + y) / (1 - y)` for `y = Y / Z`: the `u`-coordinate of the image under the birational
-equivalence, `0` at the identity (whose image is the point at infinity). -/
+The code computes `u = (Z + Y) / (Z - Y)` (`0` when `Z = Y`, since a quotient by `0` is `0`),
+which is `(1 + y) / (1 - y)` for `y = Y / Z`: the `u`-coordinate of the image under the
+birational equivalence, `0` at the identity (whose image is the point at infinity). -/
 
 open Aeneas Aeneas.Std Result Aeneas.Std.WP curve25519
 open Curve25519Dalek.backend.serial.u64.field (FieldElement51)
@@ -44,11 +45,10 @@ theorem to_montgomery_asNat (self : EdwardsPoint.«64bit-tables») (hself : self
   unfold to_montgomery
   step as ⟨U, hU⟩
   step as ⟨W, hW, hWb⟩
-  step as ⟨fe, hfe1, hfe0, hfeb⟩
-  step as ⟨u, hu, hub⟩
+  step as ⟨u, hu1, hu0, hub⟩
   step as ⟨a, ha⟩
-  rw [montgomery.MontgomeryPoint.asNat_def, asNat_eq_val_of_mod ha, toField_mul_of_mod hu,
-    toField_inv_of_mod hfe1 hfe0, toField_add_of_limbs hU, toField_sub_of_mod hW, div_eq_mul_inv]
+  rw [montgomery.MontgomeryPoint.asNat_def, asNat_eq_val_of_mod ha, toField_div_of_mod hu1 hu0,
+    toField_add_of_limbs hU, toField_sub_of_mod hW]
 
 /-- `EdwardsPoint::to_montgomery`: RFC 7748's encoding of the `u`-coordinate of the
 Montgomery image of the represented point (`0` for the identity). -/
@@ -77,11 +77,10 @@ theorem to_montgomery_asNat (self : EdwardsPoint.«32bit-tables») (hself : self
   unfold to_montgomery
   step as ⟨U, hU⟩
   step as ⟨W, hW, hWb⟩
-  step as ⟨fe, hfe1, hfe0, hfeb⟩
-  step as ⟨u, hu, hub⟩
+  step as ⟨u, hu1, hu0, hub⟩
   step as ⟨a, ha⟩
-  rw [montgomery.MontgomeryPoint.asNat_def, asNat_eq_val_of_mod ha, toField_mul_of_mod hu,
-    toField_inv_of_mod hfe1 hfe0, toField_add_of_limbs hU, toField_sub_of_mod hW, div_eq_mul_inv]
+  rw [montgomery.MontgomeryPoint.asNat_def, asNat_eq_val_of_mod ha, toField_div_of_mod hu1 hu0,
+    toField_add_of_limbs hU, toField_sub_of_mod hW]
 
 /-- `EdwardsPoint::to_montgomery`: RFC 7748's encoding of the `u`-coordinate of the
 Montgomery image of the represented point (`0` for the identity). -/
@@ -110,11 +109,10 @@ theorem to_montgomery_asNat (self : EdwardsPoint.«64bit-notables») (hself : se
   unfold to_montgomery
   step as ⟨U, hU⟩
   step as ⟨W, hW, hWb⟩
-  step as ⟨fe, hfe1, hfe0, hfeb⟩
-  step as ⟨u, hu, hub⟩
+  step as ⟨u, hu1, hu0, hub⟩
   step as ⟨a, ha⟩
-  rw [montgomery.MontgomeryPoint.asNat_def, asNat_eq_val_of_mod ha, toField_mul_of_mod hu,
-    toField_inv_of_mod hfe1 hfe0, toField_add_of_limbs hU, toField_sub_of_mod hW, div_eq_mul_inv]
+  rw [montgomery.MontgomeryPoint.asNat_def, asNat_eq_val_of_mod ha, toField_div_of_mod hu1 hu0,
+    toField_add_of_limbs hU, toField_sub_of_mod hW]
 
 /-- `EdwardsPoint::to_montgomery`: RFC 7748's encoding of the `u`-coordinate of the
 Montgomery image of the represented point (`0` for the identity). -/
@@ -143,11 +141,10 @@ theorem to_montgomery_asNat (self : EdwardsPoint.«32bit-notables») (hself : se
   unfold to_montgomery
   step as ⟨U, hU⟩
   step as ⟨W, hW, hWb⟩
-  step as ⟨fe, hfe1, hfe0, hfeb⟩
-  step as ⟨u, hu, hub⟩
+  step as ⟨u, hu1, hu0, hub⟩
   step as ⟨a, ha⟩
-  rw [montgomery.MontgomeryPoint.asNat_def, asNat_eq_val_of_mod ha, toField_mul_of_mod hu,
-    toField_inv_of_mod hfe1 hfe0, toField_add_of_limbs hU, toField_sub_of_mod hW, div_eq_mul_inv]
+  rw [montgomery.MontgomeryPoint.asNat_def, asNat_eq_val_of_mod ha, toField_div_of_mod hu1 hu0,
+    toField_add_of_limbs hU, toField_sub_of_mod hW]
 
 /-- `EdwardsPoint::to_montgomery`: RFC 7748's encoding of the `u`-coordinate of the
 Montgomery image of the represented point (`0` for the identity). -/

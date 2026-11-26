@@ -10,8 +10,6 @@ import Proofs.Field.Pow22501
 import Proofs.Backend.Serial.U32.Field.Mul
 import Proofs.Backend.Serial.U32.Field.Pow2k
 public import Proofs.Curve25519.Basic
-public import Proofs.Helpers.Backend.U32
-public import Proofs.Helpers.Backend.U64
 import Proofs.Helpers.ToField
 import Proofs.Helpers.ToField2625
 public section
@@ -109,15 +107,3 @@ theorem invert_spec (self : FieldElement2625) (hself : self.LimbsLt 27) :
     rwa [zero_pow (Nat.succ_ne_zero _)] at h0
 
 end Curve25519Dalek.field.FieldElement2625
-
-namespace Curve25519Dalek.Backend
-
-theorem U64.invert_spec : U64.InvertSpec := fun a ha =>
-  spec_mono (field.FieldElement51.invert_spec a ha) fun _ ⟨h1, h0, hb⟩ =>
-    ⟨FieldElement51.toField_inv_of_mod h1 h0, hb⟩
-
-theorem U32.invert_spec : U32.InvertSpec := fun a ha =>
-  spec_mono (field.FieldElement2625.invert_spec a ha) fun _ ⟨h1, h0, hb⟩ =>
-    ⟨FieldElement2625.toField_inv_of_mod h1 h0, hb⟩
-
-end Curve25519Dalek.Backend

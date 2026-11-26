@@ -2,7 +2,8 @@ module
 public import Curve25519Dalek.Funs
 public import Proofs.Representation.Edwards
 import Proofs.Backend.Serial.U64.Field.Mul
-import Proofs.Field.Invert
+import Proofs.Backend.Serial.U32.Field.InvertBingcd
+import Proofs.Backend.Serial.U64.Field.InvertBingcd
 import Proofs.Helpers.Coords
 import Proofs.Helpers.ToField
 import Proofs.Backend.Serial.U32.Field.Mul

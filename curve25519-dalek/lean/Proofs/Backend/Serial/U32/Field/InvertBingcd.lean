@@ -2,6 +2,7 @@ module
 public import Curve25519Dalek.Funs
 public import Proofs.Representation.FieldElement2625
 public import Proofs.Curve25519.Basic
+public import Proofs.Helpers.Backend.U32
 import Proofs.Backend.Serial.U32.Bingcd.Invert
 import Proofs.Backend.Serial.U32.Field.WeakReduce
 import Proofs.Helpers.ToField2625
@@ -35,3 +36,11 @@ theorem invert_bingcd_toField_spec (self : FieldElement2625) :
   spec_mono (invert_bingcd_spec self) fun _ ⟨h1, h0, hb⟩ => ⟨toField_inv_of_mod h1 h0, hb⟩
 
 end Curve25519Dalek.backend.serial.u32.field.FieldElement2625
+
+namespace Curve25519Dalek.Backend
+
+/-- The inversion of the `u32` backend, as a `Backend` spec. -/
+theorem U32.invert_spec : U32.InvertSpec := fun a _ =>
+  spec_mono (FieldElement2625.invert_bingcd_toField_spec a) fun _ ⟨h, hb⟩ => ⟨h, hb⟩
+
+end Curve25519Dalek.Backend

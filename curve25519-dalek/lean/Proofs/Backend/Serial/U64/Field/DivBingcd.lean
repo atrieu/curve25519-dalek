@@ -2,6 +2,7 @@ module
 public import Curve25519Dalek.Funs
 public import Proofs.Representation.FieldElement51
 public import Proofs.Curve25519.Basic
+public import Proofs.Helpers.Backend.U64
 public import Proofs.Curve25519.Prime
 public import Mathlib.Algebra.Field.ZMod
 import Proofs.Backend.Serial.U64.Bingcd.Divide
@@ -43,3 +44,12 @@ theorem div_bingcd_toField_spec (self rhs : FieldElement51) :
   spec_mono (div_bingcd_spec self rhs) fun _ ⟨h1, h0, hb⟩ => ⟨toField_div_of_mod h1 h0, hb⟩
 
 end Curve25519Dalek.backend.serial.u64.field.FieldElement51
+
+namespace Curve25519Dalek.Backend
+
+/-- The division of the `u64` backend, as a `Backend` spec. -/
+theorem U64.div_spec : U64.DivSpec := fun a b =>
+  spec_mono (FieldElement51.div_bingcd_toField_spec a b) fun _ ⟨h, hb⟩ =>
+    ⟨h, U64.limbs_lt_mono (by decide) hb⟩
+
+end Curve25519Dalek.Backend

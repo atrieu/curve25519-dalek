@@ -4,7 +4,8 @@ public import Curve25519Dalek.Funs
 public import Proofs.Representation.Montgomery
 import Proofs.Backend.Serial.U64.Field.Mul
 import Proofs.Backend.Serial.U64.Field.ToBytes
-import Proofs.Field.Invert
+import Proofs.Backend.Serial.U32.Field.DivBingcd
+import Proofs.Backend.Serial.U64.Field.DivBingcd
 import Proofs.Helpers.ToField
 import Proofs.Backend.Serial.U32.Field.Mul
 import Proofs.Backend.Serial.U32.Field.ToBytes
@@ -31,12 +32,10 @@ theorem as_affine_spec (self : montgomery.ProjectivePoint.«64bit-tables») (hse
     as_affine self ⦃ (r : montgomery.MontgomeryPoint) => r.asNat = encodeU self.toXZ.toU ⦄ := by
   obtain ⟨hU, hW⟩ := hself
   unfold as_affine
-  step as ⟨w, hw1, hw0, hw_lt⟩
-  step as ⟨u, hu, hu_lt⟩
+  step as ⟨u, hu1, hu0, hu_lt⟩
   step as ⟨r, hr⟩
-  rw [montgomery.MontgomeryPoint.asNat_def, hr, ← toField_val, toField_mul_of_mod hu,
-    toField_inv_of_mod hw1 hw0, montgomery.ProjectivePoint.«64bit-tables».toXZ_def,
-    MontgomeryModel.XZ.toU, div_eq_mul_inv, encodeU]
+  rw [montgomery.MontgomeryPoint.asNat_def, hr, ← toField_val, toField_div_of_mod hu1 hu0,
+    montgomery.ProjectivePoint.«64bit-tables».toXZ_def, MontgomeryModel.XZ.toU, encodeU]
 
 end montgomery.«ProjectivePoint64bit-tables»
 
@@ -51,12 +50,10 @@ theorem as_affine_spec (self : montgomery.ProjectivePoint.«32bit-tables») (hse
     as_affine self ⦃ (r : montgomery.MontgomeryPoint) => r.asNat = encodeU self.toXZ.toU ⦄ := by
   obtain ⟨hU, hW⟩ := hself
   unfold as_affine
-  step as ⟨w, hw1, hw0, hw_lt⟩
-  step as ⟨u, hu, hu_lt⟩
+  step as ⟨u, hu1, hu0, hu_lt⟩
   step as ⟨r, hr⟩
-  rw [montgomery.MontgomeryPoint.asNat_def, hr, ← toField_val, toField_mul_of_mod hu,
-    toField_inv_of_mod hw1 hw0, montgomery.ProjectivePoint.«32bit-tables».toXZ_def,
-    MontgomeryModel.XZ.toU, div_eq_mul_inv, encodeU]
+  rw [montgomery.MontgomeryPoint.asNat_def, hr, ← toField_val, toField_div_of_mod hu1 hu0,
+    montgomery.ProjectivePoint.«32bit-tables».toXZ_def, MontgomeryModel.XZ.toU, encodeU]
 
 end montgomery.«ProjectivePoint32bit-tables»
 
@@ -71,12 +68,10 @@ theorem as_affine_spec (self : montgomery.ProjectivePoint.«64bit-notables») (h
     as_affine self ⦃ (r : montgomery.MontgomeryPoint) => r.asNat = encodeU self.toXZ.toU ⦄ := by
   obtain ⟨hU, hW⟩ := hself
   unfold as_affine
-  step as ⟨w, hw1, hw0, hw_lt⟩
-  step as ⟨u, hu, hu_lt⟩
+  step as ⟨u, hu1, hu0, hu_lt⟩
   step as ⟨r, hr⟩
-  rw [montgomery.MontgomeryPoint.asNat_def, hr, ← toField_val, toField_mul_of_mod hu,
-    toField_inv_of_mod hw1 hw0, montgomery.ProjectivePoint.«64bit-notables».toXZ_def,
-    MontgomeryModel.XZ.toU, div_eq_mul_inv, encodeU]
+  rw [montgomery.MontgomeryPoint.asNat_def, hr, ← toField_val, toField_div_of_mod hu1 hu0,
+    montgomery.ProjectivePoint.«64bit-notables».toXZ_def, MontgomeryModel.XZ.toU, encodeU]
 
 end montgomery.«ProjectivePoint64bit-notables»
 
@@ -91,12 +86,10 @@ theorem as_affine_spec (self : montgomery.ProjectivePoint.«32bit-notables») (h
     as_affine self ⦃ (r : montgomery.MontgomeryPoint) => r.asNat = encodeU self.toXZ.toU ⦄ := by
   obtain ⟨hU, hW⟩ := hself
   unfold as_affine
-  step as ⟨w, hw1, hw0, hw_lt⟩
-  step as ⟨u, hu, hu_lt⟩
+  step as ⟨u, hu1, hu0, hu_lt⟩
   step as ⟨r, hr⟩
-  rw [montgomery.MontgomeryPoint.asNat_def, hr, ← toField_val, toField_mul_of_mod hu,
-    toField_inv_of_mod hw1 hw0, montgomery.ProjectivePoint.«32bit-notables».toXZ_def,
-    MontgomeryModel.XZ.toU, div_eq_mul_inv, encodeU]
+  rw [montgomery.MontgomeryPoint.asNat_def, hr, ← toField_val, toField_div_of_mod hu1 hu0,
+    montgomery.ProjectivePoint.«32bit-notables».toXZ_def, MontgomeryModel.XZ.toU, encodeU]
 
 end montgomery.«ProjectivePoint32bit-notables»
 

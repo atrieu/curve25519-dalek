@@ -211,7 +211,8 @@ namespace Curve25519Dalek.Backend
   isZero := field.FieldElement51.is_zero
   pow22501 := field.FieldElement51.pow22501
   powP58 := field.FieldElement51.pow_p58
-  invert := field.FieldElement51.invert
+  invert := FieldElement51.invert_bingcd
+  div := FieldElement51.div_bingcd
   sqrtRatioI := field.FieldElement51.sqrt_ratio_i
   invsqrt := field.FieldElement51.invsqrt
   invertBatchAlloc := field.FieldElement51.invert_batch_alloc

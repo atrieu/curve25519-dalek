@@ -7,7 +7,8 @@ import Mathlib.Algebra.Field.ZMod
 import Proofs.Backend.Serial.U64.Field.ConditionalAssign
 import Proofs.Backend.Serial.U64.Field.Mul
 import Proofs.Backend.Serial.U64.Field.One
-import Proofs.Field.Invert
+import Proofs.Backend.Serial.U32.Field.InvertBingcd
+import Proofs.Backend.Serial.U64.Field.InvertBingcd
 import Proofs.Field.IsZero
 import Proofs.Helpers.Field
 import Proofs.Helpers.Iterator

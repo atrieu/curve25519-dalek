@@ -441,6 +441,44 @@ def backend.serial.scalar_mul.precomputed_straus.«VartimePrecomputedMultiscalar
   Type _) (Clause4_IntoIter : Type _) :=
 Unit
 
+/-- [curve25519_dalek::backend::serial::u64::bingcd::State]
+    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 383:0-388:1
+    Visibility: public -/
+structure backend.serial.u64.bingcd.State where
+  a : Array Std.U64 4#usize
+  u : Array Std.U64 4#usize
+  b : Array Std.U64 4#usize
+  v : Array Std.U64 4#usize
+
+/-- [curve25519_dalek::backend::serial::u64::bingcd::Inner]
+    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 86:0-91:1
+    Visibility: public -/
+structure backend.serial.u64.bingcd.Inner where
+  abar : Std.U64
+  bbar : Std.U64
+  fg0 : Std.U64
+  fg1 : Std.U64
+
+/-- [curve25519_dalek::backend::serial::u64::bingcd::Matrix]
+    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 95:0-100:1
+    Visibility: public -/
+structure backend.serial.u64.bingcd.Matrix where
+  f0 : Std.U64
+  g0 : Std.U64
+  f1 : Std.U64
+  g1 : Std.U64
+
+/-- [curve25519_dalek::backend::serial::u64::bingcd::Tail]
+    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 158:0-165:1
+    Visibility: public -/
+structure backend.serial.u64.bingcd.Tail where
+  a : Std.U64
+  b : Std.U64
+  f0 : Std.U64
+  g0 : Std.U64
+  f1 : Std.U64
+  g1 : Std.U64
+
 /-- [curve25519_dalek::backend::serial::scalar_mul::precomputed_straus::{impl curve25519_dalek::traits::VartimePrecomputedMultiscalarMul<curve25519_dalek::edwards::EdwardsPoint::64bit-notables> for curve25519_dalek::backend::serial::scalar_mul::precomputed_straus::VartimePrecomputedStraus::64bit-notables}::optional_mixed_multiscalar_mul::{closure}]
     Source: 'curve25519-dalek/src/backend/serial/scalar_mul/precomputed_straus.rs', lines 82:28-82:81 -/
 @[reducible]
@@ -458,6 +496,44 @@ def backend.serial.scalar_mul.precomputed_straus.«VartimePrecomputedMultiscalar
   (Clause0_IntoIter : Type _) (Clause2_Item : Type _) (Clause2_IntoIter :
   Type _) (Clause4_IntoIter : Type _) :=
 Unit
+
+/-- [curve25519_dalek::backend::serial::u32::bingcd::State]
+    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 431:0-436:1
+    Visibility: public -/
+structure backend.serial.u32.bingcd.State where
+  a : Array Std.U32 8#usize
+  u : Array Std.U32 8#usize
+  b : Array Std.U32 8#usize
+  v : Array Std.U32 8#usize
+
+/-- [curve25519_dalek::backend::serial::u32::bingcd::Inner]
+    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 86:0-91:1
+    Visibility: public -/
+structure backend.serial.u32.bingcd.Inner where
+  abar : Std.U32
+  bbar : Std.U32
+  fg0 : Std.U32
+  fg1 : Std.U32
+
+/-- [curve25519_dalek::backend::serial::u32::bingcd::Matrix]
+    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 95:0-100:1
+    Visibility: public -/
+structure backend.serial.u32.bingcd.Matrix where
+  f0 : Std.U32
+  g0 : Std.U32
+  f1 : Std.U32
+  g1 : Std.U32
+
+/-- [curve25519_dalek::backend::serial::u32::bingcd::Tail]
+    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 158:0-165:1
+    Visibility: public -/
+structure backend.serial.u32.bingcd.Tail where
+  a : Std.U32
+  b : Std.U32
+  f0 : Std.U32
+  g0 : Std.U32
+  f1 : Std.U32
+  g1 : Std.U32
 
 /-- [curve25519_dalek::backend::serial::scalar_mul::precomputed_straus::{impl curve25519_dalek::traits::VartimePrecomputedMultiscalarMul<curve25519_dalek::edwards::EdwardsPoint::32bit-notables> for curve25519_dalek::backend::serial::scalar_mul::precomputed_straus::VartimePrecomputedStraus::32bit-notables}::optional_mixed_multiscalar_mul::{closure}]
     Source: 'curve25519-dalek/src/backend/serial/scalar_mul/precomputed_straus.rs', lines 82:28-82:81 -/
@@ -532,44 +608,6 @@ Unit
 @[reducible]
 def scalar.HalfWidthScalar := scalar.Scalar
 
-/-- [curve25519_dalek::backend::serial::u32::bingcd::Inner]
-    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 86:0-91:1
-    Visibility: public -/
-structure backend.serial.u32.bingcd.Inner where
-  abar : Std.U32
-  bbar : Std.U32
-  fg0 : Std.U32
-  fg1 : Std.U32
-
-/-- [curve25519_dalek::backend::serial::u32::bingcd::Matrix]
-    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 95:0-100:1
-    Visibility: public -/
-structure backend.serial.u32.bingcd.Matrix where
-  f0 : Std.U32
-  g0 : Std.U32
-  f1 : Std.U32
-  g1 : Std.U32
-
-/-- [curve25519_dalek::backend::serial::u32::bingcd::Tail]
-    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 158:0-165:1
-    Visibility: public -/
-structure backend.serial.u32.bingcd.Tail where
-  a : Std.U32
-  b : Std.U32
-  f0 : Std.U32
-  g0 : Std.U32
-  f1 : Std.U32
-  g1 : Std.U32
-
-/-- [curve25519_dalek::backend::serial::u32::bingcd::State]
-    Source: 'curve25519-dalek/src/backend/serial/u32/bingcd.rs', lines 431:0-436:1
-    Visibility: public -/
-structure backend.serial.u32.bingcd.State where
-  a : Array Std.U32 8#usize
-  u : Array Std.U32 8#usize
-  b : Array Std.U32 8#usize
-  v : Array Std.U32 8#usize
-
 /-- [curve25519_dalek::backend::serial::u32::scalar::Scalar29]
     Source: 'curve25519-dalek/src/backend/serial/u32/scalar.rs', lines 25:0-25:34
     Visibility: public -/
@@ -583,44 +621,6 @@ def backend.serial.u32.scalar.Scalar29 := Array Std.U32 9#usize
 def edwards.EdwardsBasepointTable.«32bit-tables» :=
   Array (window.LookupTable
   backend.serial.curve_models.AffineNielsPoint.«32bit-tables») 32#usize
-
-/-- [curve25519_dalek::backend::serial::u64::bingcd::Inner]
-    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 86:0-91:1
-    Visibility: public -/
-structure backend.serial.u64.bingcd.Inner where
-  abar : Std.U64
-  bbar : Std.U64
-  fg0 : Std.U64
-  fg1 : Std.U64
-
-/-- [curve25519_dalek::backend::serial::u64::bingcd::Matrix]
-    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 95:0-100:1
-    Visibility: public -/
-structure backend.serial.u64.bingcd.Matrix where
-  f0 : Std.U64
-  g0 : Std.U64
-  f1 : Std.U64
-  g1 : Std.U64
-
-/-- [curve25519_dalek::backend::serial::u64::bingcd::Tail]
-    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 158:0-165:1
-    Visibility: public -/
-structure backend.serial.u64.bingcd.Tail where
-  a : Std.U64
-  b : Std.U64
-  f0 : Std.U64
-  g0 : Std.U64
-  f1 : Std.U64
-  g1 : Std.U64
-
-/-- [curve25519_dalek::backend::serial::u64::bingcd::State]
-    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 383:0-388:1
-    Visibility: public -/
-structure backend.serial.u64.bingcd.State where
-  a : Array Std.U64 4#usize
-  u : Array Std.U64 4#usize
-  b : Array Std.U64 4#usize
-  v : Array Std.U64 4#usize
 
 /-- [curve25519_dalek::backend::serial::u64::scalar::Scalar52]
     Source: 'curve25519-dalek/src/backend/serial/u64/scalar.rs', lines 26:0-26:34

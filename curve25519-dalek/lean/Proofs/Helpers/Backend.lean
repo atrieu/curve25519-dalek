@@ -108,8 +108,10 @@ structure Backend where
   pow22501 : F → Result (F × F)
   /-- `FieldElement::pow_p58` -/
   powP58 : F → Result F
-  /-- `FieldElement::invert` -/
+  /-- `FieldElement::invert_bingcd`: the inversion that the point code calls -/
   invert : F → Result F
+  /-- `FieldElement::div_bingcd` -/
+  div : F → F → Result F
   /-- `FieldElement::sqrt_ratio_i` -/
   sqrtRatioI : F → F → Result (subtle.Choice × F)
   /-- `FieldElement::invsqrt` -/
@@ -238,9 +240,13 @@ abbrev Pow22501Spec : Prop := ∀ a, B.SqIn a → B.pow22501 a ⦃ (t19 t3 : B.F
 abbrev PowP58Spec : Prop := ∀ a, B.SqIn a →
   B.powP58 a ⦃ r => B.toField r = B.toField a ^ (2 ^ 252 - 3) ∧ B.Red r ⦄
 
-/-- `invert a` is `a ^ (p - 2)`, i.e. `a⁻¹` (`0` for `0`). -/
+/-- `invert a` is `a⁻¹` (`0` for `0`). -/
 abbrev InvertSpec : Prop := ∀ a, B.SqIn a →
   B.invert a ⦃ r => B.toField r = (B.toField a)⁻¹ ∧ B.Red r ⦄
+
+/-- `div a b` is `a / b` (`0` for `b = 0`). -/
+abbrev DivSpec : Prop := ∀ a b,
+  B.div a b ⦃ r => B.toField r = B.toField a / B.toField b ∧ B.Red r ⦄
 
 /-- `sqrtRatioI u v`: RFC 9496's `SQRT_RATIO_M1`, in `ZMod p`. -/
 abbrev SqrtRatioISpec : Prop := ∀ u v, B.SqIn u → B.SqIn v →
