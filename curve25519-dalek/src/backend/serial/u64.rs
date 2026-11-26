@@ -20,6 +20,8 @@
 //! (allowing the CPU to compute two carry chains in parallel).  These
 //! will be used if available.
 
+pub mod bingcd;
+
 pub mod field;
 
 pub mod scalar;

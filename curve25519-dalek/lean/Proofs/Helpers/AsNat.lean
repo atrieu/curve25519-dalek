@@ -8,8 +8,8 @@ public section
 /-! # Lemmas about `Array.asNat`
 
 The value of an array as little-endian digits in radix `2 ^ bits`: as a sum (`asNat_eq_sum`),
-unfolded for five and nine digits, its bounds, its digits, its injectivity, and how it changes
-when a digit is set. -/
+unfolded for four, five and nine digits, its bounds, its digits, its injectivity, and how it
+changes when a digit is set. -/
 
 open Aeneas Aeneas.Std
 
@@ -53,6 +53,36 @@ theorem sum_digits_eq_mod (b k x : ℕ) :
   | zero => simp [Nat.mod_one]
   | succ k ih => rw [Finset.sum_range_succ, ih, Nat.mod_pow_succ]
 
+/-- The quotient by `A` of five digits in radix `W = A * B`: each digit of the quotient takes
+the high part of a digit and the low part of the next one. -/
+theorem div_five_digits {A B W : ℕ} (hA : 0 < A) (hW : W = A * B) (x0 x1 x2 x3 x4 : ℕ) :
+    (x0 + W * x1 + W ^ 2 * x2 + W ^ 3 * x3 + W ^ 4 * x4) / A =
+      x0 / A + x1 % A * B + W * (x1 / A + x2 % A * B) + W ^ 2 * (x2 / A + x3 % A * B) +
+        W ^ 3 * (x3 / A + x4 % A * B) + W ^ 4 * (x4 / A) := by
+  subst hW
+  have hs := Nat.mod_lt x0 hA
+  have h0 := Nat.div_add_mod x0 A
+  have h1 := Nat.div_add_mod x1 A
+  have h2 := Nat.div_add_mod x2 A
+  have h3 := Nat.div_add_mod x3 A
+  have h4 := Nat.div_add_mod x4 A
+  generalize x0 / A = q0 at *
+  generalize x0 % A = s0 at *
+  generalize x1 / A = q1 at *
+  generalize x1 % A = s1 at *
+  generalize x2 / A = q2 at *
+  generalize x2 % A = s2 at *
+  generalize x3 / A = q3 at *
+  generalize x3 % A = s3 at *
+  generalize x4 / A = q4 at *
+  generalize x4 % A = s4 at *
+  subst h0 h1 h2 h3 h4
+  have key : A * q0 + s0 + A * B * (A * q1 + s1) + (A * B) ^ 2 * (A * q2 + s2) +
+      (A * B) ^ 3 * (A * q3 + s3) + (A * B) ^ 4 * (A * q4 + s4) =
+      s0 + A * (q0 + s1 * B + A * B * (q1 + s2 * B) + (A * B) ^ 2 * (q2 + s3 * B) +
+        (A * B) ^ 3 * (q3 + s4 * B) + (A * B) ^ 4 * q4) := by ring
+  rw [key, Nat.add_mul_div_left _ _ hA, Nat.div_eq_of_lt hs, Nat.zero_add]
+
 end Nat
 
 namespace Aeneas.Std.Array
@@ -72,6 +102,19 @@ theorem asNat_eq_sum {ty : UScalarTy} {n : Usize} (bits : ℕ) (a : Array (UScal
     rw [List.length_cons, Finset.sum_range_succ']
     simp [Nat.ofDigits, ih, pow_succ, pow_mul, Finset.mul_sum]
     ring_nf
+
+/-- `asNat` of four digits, unfolded. -/
+theorem asNat_four {ty : UScalarTy} (bits : ℕ) (a : Array (UScalar ty) 4#usize) :
+    a.asNat bits = a[0]!.val + 2 ^ bits * a[1]!.val + 2 ^ (2 * bits) * a[2]!.val
+      + 2 ^ (3 * bits) * a[3]!.val := by
+  have h : a.val.length = 4 := by simp
+  simp only [Array.asNat_def, Array.getElem!_Nat_eq]
+  generalize a.val = l at h ⊢
+  match l, h with
+  | [x0, x1, x2, x3], _ =>
+    simp only [Nat.ofDigits, List.map_cons, List.map_nil, Nat.cast_id, List.getElem!_cons_zero,
+      List.getElem!_cons_succ]
+    ring
 
 /-- `asNat` of five digits, unfolded. -/
 theorem asNat_five {ty : UScalarTy} (bits : ℕ) (a : Array (UScalar ty) 5#usize) :

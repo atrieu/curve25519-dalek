@@ -571,6 +571,75 @@ mod test {
     }
 
     #[test]
+    #[cfg(all(curve25519_dalek_bits = "64", not(curve25519_dalek_backend = "fiat")))]
+    fn invert_bingcd_matches_invert() {
+        // the constant of the other tests, zero, one and minus one
+        let a = FieldElement::from_bytes(&A_BYTES);
+        assert_eq!(a.invert_bingcd(), FieldElement::from_bytes(&AINV_BYTES));
+        assert_eq!(FieldElement::ZERO.invert_bingcd(), FieldElement::ZERO);
+        assert_eq!(FieldElement::ONE.invert_bingcd(), FieldElement::ONE);
+        assert_eq!(
+            FieldElement::MINUS_ONE.invert_bingcd(),
+            FieldElement::MINUS_ONE
+        );
+    }
+
+    #[test]
+    #[cfg(all(curve25519_dalek_bits = "64", not(curve25519_dalek_backend = "fiat")))]
+    fn div_bingcd_matches_mul_invert() {
+        let a = FieldElement::from_bytes(&A_BYTES);
+        assert_eq!(
+            FieldElement::ONE.div_bingcd(&a),
+            FieldElement::from_bytes(&AINV_BYTES)
+        );
+        assert_eq!(a.div_bingcd(&a), FieldElement::ONE);
+        assert_eq!(a.div_bingcd(&FieldElement::ONE), a);
+        assert_eq!(a.div_bingcd(&FieldElement::ZERO), FieldElement::ZERO);
+        assert_eq!(FieldElement::ZERO.div_bingcd(&a), FieldElement::ZERO);
+    }
+
+    #[cfg(all(curve25519_dalek_bits = "64", not(curve25519_dalek_backend = "fiat")))]
+    proptest::proptest! {
+        /// `invert_bingcd` agrees with `invert` on any element, also with unreduced limbs.
+        #[test]
+        fn proptest_invert_bingcd_matches_invert(
+            bytes in proptest::array::uniform32(proptest::num::u8::ANY),
+        ) {
+            let a = FieldElement::from_bytes(&A_BYTES);
+            let y = FieldElement::from_bytes(&bytes);
+            // a sum of three elements: its limbs are not reduced, but stay below 2^54
+            let x = &(&y + &y) + &a;
+
+            proptest::prop_assert_eq!(y.invert_bingcd(), y.invert());
+            proptest::prop_assert_eq!(x.invert_bingcd(), x.invert());
+            if y != FieldElement::ZERO {
+                proptest::prop_assert_eq!(&y * &y.invert_bingcd(), FieldElement::ONE);
+            }
+        }
+
+        /// `div_bingcd` agrees with a multiplication by the inverse on any two elements, also
+        /// with unreduced limbs.
+        #[test]
+        fn proptest_div_bingcd_matches_mul_invert(
+            x_bytes in proptest::array::uniform32(proptest::num::u8::ANY),
+            y_bytes in proptest::array::uniform32(proptest::num::u8::ANY),
+        ) {
+            let a = FieldElement::from_bytes(&A_BYTES);
+            let x = FieldElement::from_bytes(&x_bytes);
+            let y = FieldElement::from_bytes(&y_bytes);
+            // sums of three elements: their limbs are not reduced, but stay below 2^54
+            let xs = &(&x + &x) + &a;
+            let ys = &(&y + &y) + &a;
+
+            proptest::prop_assert_eq!(x.div_bingcd(&y), &x * &y.invert());
+            proptest::prop_assert_eq!(xs.div_bingcd(&ys), &xs * &ys.invert());
+            if y != FieldElement::ZERO {
+                proptest::prop_assert_eq!(&x.div_bingcd(&y) * &y, x);
+            }
+        }
+    }
+
+    #[test]
     fn a_invert_vs_inverse_of_a_constant() {
         let a = FieldElement::from_bytes(&A_BYTES);
         let ainv = FieldElement::from_bytes(&AINV_BYTES);

@@ -8,7 +8,7 @@ public section
 
 /-! # Lemmas about bitwise operations
 
-Masks, shifts and ors, on machine integers and on natural numbers.
+Masks, shifts and ors, on machine integers, on natural numbers and on bit vectors.
 
 `X / 2 ^ (64 * u) % 2 ^ 64` is limb `u` of `X`. The window of `w` bits of `X` at bit `64 * u + b` is
 read from limb `u` alone when `b + w ≤ 64` (`Nat.window_in_limb`), and from limbs `u` and `u + 1`
@@ -139,3 +139,32 @@ theorem two_pow_mul_window_eq {Y c c' w pos : ℕ} {d : ℤ}
   linear_combination (-(2 : ℤ) ^ pos) * hd - (2 : ℤ) ^ pos * hY
 
 end Nat
+
+namespace BitVec
+
+/-- The zero extension of a 64-bit vector to 128 bits, from its value. -/
+theorem setWidth_eq_ofInt_toNat (a : BitVec 64) :
+    a.setWidth 128 = BitVec.ofInt 128 (a.toNat : ℤ) := by
+  apply BitVec.eq_of_toNat_eq
+  have := a.isLt
+  simp only [BitVec.toNat_setWidth, BitVec.toNat_ofInt]
+  omega
+
+/-- A limb of a number shifted right by `k` bits across 64-bit limbs: the high bits of `x`,
+joined with the low bits of `y` by a shift and an or. -/
+theorem toNat_ushiftRight_or_shiftLeft (x y : BitVec 64) {k : ℕ} (hk0 : 0 < k) (hk : k < 64) :
+    ((x >>> k) ||| (y <<< (64 - k))).toNat =
+      x.toNat / 2 ^ k + (y.toNat % 2 ^ k) * 2 ^ (64 - k) := by
+  have hx := x.isLt
+  have hpow : 2 ^ k * 2 ^ (64 - k) = 2 ^ 64 := by rw [← pow_add]; congr 1; omega
+  have hq : x.toNat / 2 ^ k < 2 ^ (64 - k) := by
+    rw [Nat.div_lt_iff_lt_mul (Nat.two_pow_pos k), Nat.mul_comm, hpow]
+    exact hx
+  have e : y.toNat * 2 ^ (64 - k) % 2 ^ 64 = (y.toNat % 2 ^ k) <<< (64 - k) := by
+    rw [Nat.shiftLeft_eq, ← hpow, Nat.mul_mod_mul_right]
+  have hor := Nat.shiftLeft_add_eq_or_of_lt hq (y.toNat % 2 ^ k)
+  rw [BitVec.toNat_or, BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft,
+    Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq, e, Nat.or_comm, ← hor, Nat.shiftLeft_eq,
+    Nat.add_comm]
+
+end BitVec

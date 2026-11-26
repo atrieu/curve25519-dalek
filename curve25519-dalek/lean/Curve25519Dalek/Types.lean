@@ -546,6 +546,44 @@ def edwards.EdwardsBasepointTable.«32bit-tables» :=
   Array (window.LookupTable
   backend.serial.curve_models.AffineNielsPoint.«32bit-tables») 32#usize
 
+/-- [curve25519_dalek::backend::serial::u64::bingcd::Inner]
+    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 86:0-91:1
+    Visibility: public -/
+structure backend.serial.u64.bingcd.Inner where
+  abar : Std.U64
+  bbar : Std.U64
+  fg0 : Std.U64
+  fg1 : Std.U64
+
+/-- [curve25519_dalek::backend::serial::u64::bingcd::Matrix]
+    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 95:0-100:1
+    Visibility: public -/
+structure backend.serial.u64.bingcd.Matrix where
+  f0 : Std.U64
+  g0 : Std.U64
+  f1 : Std.U64
+  g1 : Std.U64
+
+/-- [curve25519_dalek::backend::serial::u64::bingcd::Tail]
+    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 158:0-165:1
+    Visibility: public -/
+structure backend.serial.u64.bingcd.Tail where
+  a : Std.U64
+  b : Std.U64
+  f0 : Std.U64
+  g0 : Std.U64
+  f1 : Std.U64
+  g1 : Std.U64
+
+/-- [curve25519_dalek::backend::serial::u64::bingcd::State]
+    Source: 'curve25519-dalek/src/backend/serial/u64/bingcd.rs', lines 383:0-388:1
+    Visibility: public -/
+structure backend.serial.u64.bingcd.State where
+  a : Array Std.U64 4#usize
+  u : Array Std.U64 4#usize
+  b : Array Std.U64 4#usize
+  v : Array Std.U64 4#usize
+
 /-- [curve25519_dalek::backend::serial::u64::scalar::Scalar52]
     Source: 'curve25519-dalek/src/backend/serial/u64/scalar.rs', lines 26:0-26:34
     Visibility: public -/
