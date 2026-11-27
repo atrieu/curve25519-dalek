@@ -42,7 +42,7 @@ index 8924166..4c7263e 100644
          assert!(bool::from(!acc.is_zero()));
  
          // Compute the inverse of all products
-         acc = acc.invert();
+         acc = acc.invert_bingcd();
  
          // Pass through the vector backwards to compute the inverses
          // in place

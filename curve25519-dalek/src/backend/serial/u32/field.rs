@@ -298,6 +298,38 @@ impl FieldElement2625 {
         0x3ffffff, 0x1ffffff,
     ]);
 
+    /// This field element with its limbs weakly reduced: below `2^26` at even positions and
+    /// below `2^25 + 2^18` at odd ones.
+    fn weak_reduce(&self) -> FieldElement2625 {
+        FieldElement2625::reduce([
+            self.0[0] as u64,
+            self.0[1] as u64,
+            self.0[2] as u64,
+            self.0[3] as u64,
+            self.0[4] as u64,
+            self.0[5] as u64,
+            self.0[6] as u64,
+            self.0[7] as u64,
+            self.0[8] as u64,
+            self.0[9] as u64,
+        ])
+    }
+
+    /// The inverse of this field element, by Pornin's optimized binary GCD; the inverse of
+    /// zero is zero. The limbs are first weakly reduced, which is the bound that the verified
+    /// `bingcd::invert` asks for.
+    pub fn invert_bingcd(&self) -> FieldElement2625 {
+        super::bingcd::invert(&self.weak_reduce().0)
+    }
+
+    /// The quotient of this field element by `rhs`, by one run of Pornin's optimized binary
+    /// GCD: there is no multiplication by an inverse. A quotient by zero is zero. The limbs
+    /// are first weakly reduced, which is the bound that the verified `bingcd::divide` asks
+    /// for.
+    pub fn div_bingcd(&self, rhs: &FieldElement2625) -> FieldElement2625 {
+        super::bingcd::divide(&self.weak_reduce(), &rhs.weak_reduce().0)
+    }
+
     /// Invert the sign of this field element
     pub fn negate(&mut self) {
         // Compute -b as ((2^4 * p) - b) to avoid underflow.
@@ -333,7 +365,7 @@ impl FieldElement2625 {
     /// In other words, each coefficient of the result is bounded by
     /// either `2^(25 + 0.007)` or `2^(26 + 0.007)`, as appropriate.
     #[rustfmt::skip] // keep alignment of carry chain
-    const fn reduce(mut z: [u64; 10]) -> FieldElement2625 {
+    pub(crate) const fn reduce(mut z: [u64; 10]) -> FieldElement2625 {
 
         const LOW_25_BITS: u64 = (1 << 25) - 1;
         const LOW_26_BITS: u64 = (1 << 26) - 1;

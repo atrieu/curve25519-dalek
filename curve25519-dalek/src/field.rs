@@ -258,7 +258,7 @@ impl FieldElement {
         assert!(bool::from(!acc.is_zero()));
 
         // Compute the inverse of all products
-        acc = acc.invert();
+        acc = acc.invert_bingcd();
 
         // Pass through the vector backwards to compute the inverses
         // in place
@@ -280,6 +280,9 @@ impl FieldElement {
     /// This function returns zero on input zero.
     #[rustfmt::skip] // keep alignment of explanatory comments
     #[allow(clippy::let_and_return)]
+    // The serial backends invert with `invert_bingcd`: this is what the tests compare it with,
+    // and what the fiat backends use.
+    #[allow(dead_code)]
     pub(crate) fn invert(&self) -> FieldElement {
         // The bits of p-2 = 2^255 -19 -2 are 11010111111...11.
         //
@@ -428,6 +431,19 @@ impl FieldElement {
     }
 }
 
+/// The fiat backends have no binary GCD: for them `invert_bingcd` and `div_bingcd` are the
+/// addition chain of `invert`.
+#[cfg(curve25519_dalek_backend = "fiat")]
+impl FieldElement {
+    pub(crate) fn invert_bingcd(&self) -> FieldElement {
+        self.invert()
+    }
+
+    pub(crate) fn div_bingcd(&self, rhs: &FieldElement) -> FieldElement {
+        self * &rhs.invert()
+    }
+}
+
 /// Hashes the concatenation of the elements of `msg` with domain separator equal to the
 /// concatenation of `domain_sep`. The output is an `outlen`-length slice into `buf`. Follows
 /// https://www.rfc-editor.org/rfc/rfc9380.html#section-5.3.1
@@ -568,6 +584,75 @@ mod test {
         let a = FieldElement::from_bytes(&A_BYTES);
         let asq = FieldElement::from_bytes(&ASQ_BYTES);
         assert_eq!(a.square2(), &asq + &asq);
+    }
+
+    #[test]
+    #[cfg(not(curve25519_dalek_backend = "fiat"))]
+    fn invert_bingcd_matches_invert() {
+        // the constant of the other tests, zero, one and minus one
+        let a = FieldElement::from_bytes(&A_BYTES);
+        assert_eq!(a.invert_bingcd(), FieldElement::from_bytes(&AINV_BYTES));
+        assert_eq!(FieldElement::ZERO.invert_bingcd(), FieldElement::ZERO);
+        assert_eq!(FieldElement::ONE.invert_bingcd(), FieldElement::ONE);
+        assert_eq!(
+            FieldElement::MINUS_ONE.invert_bingcd(),
+            FieldElement::MINUS_ONE
+        );
+    }
+
+    #[test]
+    #[cfg(not(curve25519_dalek_backend = "fiat"))]
+    fn div_bingcd_matches_mul_invert() {
+        let a = FieldElement::from_bytes(&A_BYTES);
+        assert_eq!(
+            FieldElement::ONE.div_bingcd(&a),
+            FieldElement::from_bytes(&AINV_BYTES)
+        );
+        assert_eq!(a.div_bingcd(&a), FieldElement::ONE);
+        assert_eq!(a.div_bingcd(&FieldElement::ONE), a);
+        assert_eq!(a.div_bingcd(&FieldElement::ZERO), FieldElement::ZERO);
+        assert_eq!(FieldElement::ZERO.div_bingcd(&a), FieldElement::ZERO);
+    }
+
+    #[cfg(not(curve25519_dalek_backend = "fiat"))]
+    proptest::proptest! {
+        /// `invert_bingcd` agrees with `invert` on any element, also with unreduced limbs.
+        #[test]
+        fn proptest_invert_bingcd_matches_invert(
+            bytes in proptest::array::uniform32(proptest::num::u8::ANY),
+        ) {
+            let a = FieldElement::from_bytes(&A_BYTES);
+            let y = FieldElement::from_bytes(&bytes);
+            // a sum of three elements: its limbs are not reduced, but stay below 2^54
+            let x = &(&y + &y) + &a;
+
+            proptest::prop_assert_eq!(y.invert_bingcd(), y.invert());
+            proptest::prop_assert_eq!(x.invert_bingcd(), x.invert());
+            if y != FieldElement::ZERO {
+                proptest::prop_assert_eq!(&y * &y.invert_bingcd(), FieldElement::ONE);
+            }
+        }
+
+        /// `div_bingcd` agrees with a multiplication by the inverse on any two elements, also
+        /// with unreduced limbs.
+        #[test]
+        fn proptest_div_bingcd_matches_mul_invert(
+            x_bytes in proptest::array::uniform32(proptest::num::u8::ANY),
+            y_bytes in proptest::array::uniform32(proptest::num::u8::ANY),
+        ) {
+            let a = FieldElement::from_bytes(&A_BYTES);
+            let x = FieldElement::from_bytes(&x_bytes);
+            let y = FieldElement::from_bytes(&y_bytes);
+            // sums of three elements: their limbs are not reduced, but stay below 2^54
+            let xs = &(&x + &x) + &a;
+            let ys = &(&y + &y) + &a;
+
+            proptest::prop_assert_eq!(x.div_bingcd(&y), &x * &y.invert());
+            proptest::prop_assert_eq!(xs.div_bingcd(&ys), &xs * &ys.invert());
+            if y != FieldElement::ZERO {
+                proptest::prop_assert_eq!(&x.div_bingcd(&y) * &y, x);
+            }
+        }
     }
 
     #[test]

@@ -259,7 +259,7 @@ impl MontgomeryPoint {
 
         let one = FieldElement::ONE;
 
-        let y = &(&u - &one) * &(&u + &one).invert();
+        let y = (&u - &one).div_bingcd(&(&u + &one));
 
         let mut y_bytes = y.to_bytes();
         y_bytes[31] ^= sign << 7;
@@ -407,7 +407,7 @@ impl ProjectivePoint {
     /// * \\( u = U / W \\) if \\( W \neq 0 \\);
     /// * \\( 0 \\) if \\( W \eq 0 \\);
     pub fn as_affine(&self) -> MontgomeryPoint {
-        let u = &self.U * &self.W.invert();
+        let u = self.U.div_bingcd(&self.W);
         MontgomeryPoint(u.to_bytes())
     }
 }

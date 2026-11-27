@@ -591,7 +591,7 @@ impl EdwardsPoint {
     /// Dehomogenize to a `AffineNielsPoint`.
     /// Mainly for testing.
     pub(crate) fn as_affine_niels(&self) -> AffineNielsPoint {
-        let recip = self.Z.invert();
+        let recip = self.Z.invert_bingcd();
         let x = &self.X * &recip;
         let y = &self.Y * &recip;
         let xy2d = &(&x * &y) * &constants::EDWARDS_D2;
@@ -604,7 +604,7 @@ impl EdwardsPoint {
 
     /// Dehomogenize to `AffinePoint`.
     pub(crate) fn to_affine(self) -> AffinePoint {
-        let recip = self.Z.invert();
+        let recip = self.Z.invert_bingcd();
         let x = &self.X * &recip;
         let y = &self.Y * &recip;
         AffinePoint { x, y }
@@ -623,11 +623,11 @@ impl EdwardsPoint {
         // We have u = (1+y)/(1-y) = (Z+Y)/(Z-Y).
         //
         // The denominator is zero only when y=1, the identity point of
-        // the Edwards curve.  Since 0.invert() = 0, in this case we
+        // the Edwards curve.  Since a quotient by 0 is 0, in this case we
         // compute the 2-torsion point (0,0).
         let U = &self.Z + &self.Y;
         let W = &self.Z - &self.Y;
-        let u = &U * &W.invert();
+        let u = U.div_bingcd(&W);
         MontgomeryPoint(u.to_bytes())
     }
 

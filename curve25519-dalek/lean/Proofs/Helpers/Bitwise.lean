@@ -8,7 +8,7 @@ public section
 
 /-! # Lemmas about bitwise operations
 
-Masks, shifts and ors, on machine integers and on natural numbers.
+Masks, shifts and ors, on machine integers, on natural numbers and on bit vectors.
 
 `X / 2 ^ (64 * u) % 2 ^ 64` is limb `u` of `X`. The window of `w` bits of `X` at bit `64 * u + b` is
 read from limb `u` alone when `b + w ≤ 64` (`Nat.window_in_limb`), and from limbs `u` and `u + 1`
@@ -139,3 +139,32 @@ theorem two_pow_mul_window_eq {Y c c' w pos : ℕ} {d : ℤ}
   linear_combination (-(2 : ℤ) ^ pos) * hd - (2 : ℤ) ^ pos * hY
 
 end Nat
+
+namespace BitVec
+
+/-- The zero extension of a bit vector to a longer one, from its value. -/
+theorem setWidth_eq_ofInt_toNat {w v : ℕ} (h : w ≤ v) (a : BitVec w) :
+    a.setWidth v = BitVec.ofInt v (a.toNat : ℤ) := by
+  apply BitVec.eq_of_toNat_eq
+  have ha : a.toNat < 2 ^ v := lt_of_lt_of_le a.isLt (Nat.pow_le_pow_right (by norm_num) h)
+  rw [BitVec.toNat_setWidth, BitVec.toNat_ofInt, Nat.mod_eq_of_lt ha,
+    Int.emod_eq_of_lt (Int.natCast_nonneg _) (by exact_mod_cast ha), Int.toNat_natCast]
+
+/-- A limb of a number shifted right by `k` bits across limbs of `w` bits: the high bits of `x`,
+joined with the low bits of `y` by a shift and an or. -/
+theorem toNat_ushiftRight_or_shiftLeft {w : ℕ} (x y : BitVec w) {k : ℕ} (hk : k < w) :
+    ((x >>> k) ||| (y <<< (w - k))).toNat =
+      x.toNat / 2 ^ k + (y.toNat % 2 ^ k) * 2 ^ (w - k) := by
+  have hx := x.isLt
+  have hpow : 2 ^ k * 2 ^ (w - k) = 2 ^ w := by rw [← pow_add]; congr 1; omega
+  have hq : x.toNat / 2 ^ k < 2 ^ (w - k) := by
+    rw [Nat.div_lt_iff_lt_mul (Nat.two_pow_pos k), Nat.mul_comm, hpow]
+    exact hx
+  have e : y.toNat * 2 ^ (w - k) % 2 ^ w = (y.toNat % 2 ^ k) <<< (w - k) := by
+    rw [Nat.shiftLeft_eq, ← hpow, Nat.mul_mod_mul_right]
+  have hor := Nat.shiftLeft_add_eq_or_of_lt hq (y.toNat % 2 ^ k)
+  rw [BitVec.toNat_or, BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft,
+    Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq, e, Nat.or_comm, ← hor, Nat.shiftLeft_eq,
+    Nat.add_comm]
+
+end BitVec

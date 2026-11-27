@@ -53,6 +53,84 @@ theorem sum_digits_eq_mod (b k x : ℕ) :
   | zero => simp [Nat.mod_one]
   | succ k ih => rw [Finset.sum_range_succ, ih, Nat.mod_pow_succ]
 
+/-- The quotient by `A` of five digits in radix `W = A * B`: each digit of the quotient takes
+the high part of a digit and the low part of the next one. -/
+theorem div_five_digits {A B W : ℕ} (hA : 0 < A) (hW : W = A * B) (x0 x1 x2 x3 x4 : ℕ) :
+    (x0 + W * x1 + W ^ 2 * x2 + W ^ 3 * x3 + W ^ 4 * x4) / A =
+      x0 / A + x1 % A * B + W * (x1 / A + x2 % A * B) + W ^ 2 * (x2 / A + x3 % A * B) +
+        W ^ 3 * (x3 / A + x4 % A * B) + W ^ 4 * (x4 / A) := by
+  subst hW
+  have hs := Nat.mod_lt x0 hA
+  have h0 := Nat.div_add_mod x0 A
+  have h1 := Nat.div_add_mod x1 A
+  have h2 := Nat.div_add_mod x2 A
+  have h3 := Nat.div_add_mod x3 A
+  have h4 := Nat.div_add_mod x4 A
+  generalize x0 / A = q0 at *
+  generalize x0 % A = s0 at *
+  generalize x1 / A = q1 at *
+  generalize x1 % A = s1 at *
+  generalize x2 / A = q2 at *
+  generalize x2 % A = s2 at *
+  generalize x3 / A = q3 at *
+  generalize x3 % A = s3 at *
+  generalize x4 / A = q4 at *
+  generalize x4 % A = s4 at *
+  subst h0 h1 h2 h3 h4
+  have key : A * q0 + s0 + A * B * (A * q1 + s1) + (A * B) ^ 2 * (A * q2 + s2) +
+      (A * B) ^ 3 * (A * q3 + s3) + (A * B) ^ 4 * (A * q4 + s4) =
+      s0 + A * (q0 + s1 * B + A * B * (q1 + s2 * B) + (A * B) ^ 2 * (q2 + s3 * B) +
+        (A * B) ^ 3 * (q3 + s4 * B) + (A * B) ^ 4 * q4) := by ring
+  rw [key, Nat.add_mul_div_left _ _ hA, Nat.div_eq_of_lt hs, Nat.zero_add]
+
+/-- The quotient by `A` of nine digits in radix `W = A * B`: each digit of the quotient takes
+the high part of a digit and the low part of the next one. -/
+theorem div_nine_digits {A B W : ℕ} (hA : 0 < A) (hW : W = A * B)
+    (x0 x1 x2 x3 x4 x5 x6 x7 x8 : ℕ) :
+    (x0 + W * x1 + W ^ 2 * x2 + W ^ 3 * x3 + W ^ 4 * x4 + W ^ 5 * x5 + W ^ 6 * x6 + W ^ 7 * x7 +
+        W ^ 8 * x8) / A =
+      x0 / A + x1 % A * B + W * (x1 / A + x2 % A * B) + W ^ 2 * (x2 / A + x3 % A * B) +
+        W ^ 3 * (x3 / A + x4 % A * B) + W ^ 4 * (x4 / A + x5 % A * B) +
+        W ^ 5 * (x5 / A + x6 % A * B) + W ^ 6 * (x6 / A + x7 % A * B) +
+        W ^ 7 * (x7 / A + x8 % A * B) + W ^ 8 * (x8 / A) := by
+  subst hW
+  have hs := Nat.mod_lt x0 hA
+  have h0 := Nat.div_add_mod x0 A
+  have h1 := Nat.div_add_mod x1 A
+  have h2 := Nat.div_add_mod x2 A
+  have h3 := Nat.div_add_mod x3 A
+  have h4 := Nat.div_add_mod x4 A
+  have h5 := Nat.div_add_mod x5 A
+  have h6 := Nat.div_add_mod x6 A
+  have h7 := Nat.div_add_mod x7 A
+  have h8 := Nat.div_add_mod x8 A
+  generalize x0 / A = q0 at *
+  generalize x0 % A = s0 at *
+  generalize x1 / A = q1 at *
+  generalize x1 % A = s1 at *
+  generalize x2 / A = q2 at *
+  generalize x2 % A = s2 at *
+  generalize x3 / A = q3 at *
+  generalize x3 % A = s3 at *
+  generalize x4 / A = q4 at *
+  generalize x4 % A = s4 at *
+  generalize x5 / A = q5 at *
+  generalize x5 % A = s5 at *
+  generalize x6 / A = q6 at *
+  generalize x6 % A = s6 at *
+  generalize x7 / A = q7 at *
+  generalize x7 % A = s7 at *
+  generalize x8 / A = q8 at *
+  generalize x8 % A = s8 at *
+  subst h0 h1 h2 h3 h4 h5 h6 h7 h8
+  have key : A * q0 + s0 + A * B * (A * q1 + s1) + (A * B) ^ 2 * (A * q2 + s2) +
+      (A * B) ^ 3 * (A * q3 + s3) + (A * B) ^ 4 * (A * q4 + s4) + (A * B) ^ 5 * (A * q5 + s5) +
+      (A * B) ^ 6 * (A * q6 + s6) + (A * B) ^ 7 * (A * q7 + s7) + (A * B) ^ 8 * (A * q8 + s8) =
+      s0 + A * (q0 + s1 * B + A * B * (q1 + s2 * B) + (A * B) ^ 2 * (q2 + s3 * B) +
+        (A * B) ^ 3 * (q3 + s4 * B) + (A * B) ^ 4 * (q4 + s5 * B) + (A * B) ^ 5 * (q5 + s6 * B) +
+        (A * B) ^ 6 * (q6 + s7 * B) + (A * B) ^ 7 * (q7 + s8 * B) + (A * B) ^ 8 * q8) := by ring
+  rw [key, Nat.add_mul_div_left _ _ hA, Nat.div_eq_of_lt hs, Nat.zero_add]
+
 end Nat
 
 namespace Aeneas.Std.Array
