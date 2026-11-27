@@ -1,5 +1,5 @@
 module
-public import Proofs.Helpers.Bingcd.OnLimbs
+public import Proofs.Helpers.Bingcd.Cofactors
 public import Mathlib.Tactic.LinearCombination
 public import Mathlib.Data.ZMod.Basic
 public import Mathlib.Tactic.IntervalCases
@@ -9,10 +9,10 @@ public import Proofs.Curve25519.Prime
 /-! # The field modulo `p` on limbs, and inversion in it
 
 `bingcd::invert` and `bingcd::divide` take a field element on five 51-bit limbs to its
-canonical form on four 64-bit limbs, run Pornin's algorithm, and return to five limbs. This
-file has these conversions and the two functions on vectors of words, with their
-correctness: the result represents the inverse, respectively the quotient, modulo
-`p = 2 ^ 255 - 19`. -/
+canonical form on four 64-bit limbs, and run Pornin's algorithm on it and the modulus, with the
+cofactors kept as field elements. This file has the conversion on vectors of words and the
+correctness of the run: from the cofactor `u`, it ends on `u * 2 ^ 508 / z` modulo
+`p = 2 ^ 255 - 19`, and the factor `2 ^ 508` is cancelled by the constant `scale`. -/
 
 @[expose] public section
 
@@ -121,12 +121,6 @@ theorem eval_five {w : ℕ} (r : ℕ) (a : Limbs w 5) :
   simp [eval, digits, Nat.ofDigits]
   ring
 
-theorem bounded_five {w : ℕ} {x₀ x₁ x₂ x₃ x₄ : Word w} {β : ℕ} (h₀ : x₀.toNat ≤ β)
-    (h₁ : x₁.toNat ≤ β) (h₂ : x₂.toNat ≤ β) (h₃ : x₃.toNat ≤ β) (h₄ : x₄.toNat ≤ β) :
-    Bounded (#v[x₀, x₁, x₂, x₃, x₄] : Limbs w 5) β := by
-  intro i hi
-  interval_cases i <;> assumption
-
 /-- Limbs at most `2 ^ 51 + 2 ^ 23`: the bound that `freeze` asks for. -/
 def Tight (a : Limbs 64 5) : Prop := Bounded a (2 ^ 51 + 2 ^ 23)
 
@@ -151,7 +145,7 @@ theorem eval_four {w : ℕ} (r : ℕ) (a : Limbs w 4) :
   simp [eval, digits, Nat.ofDigits]
   ring
 
-/-! ### Packing and unpacking -/
+/-! ### Packing -/
 
 /-- Pack five limbs below `2 ^ 51` and a carry bit, of weight `2 ^ 255`, into four 64-bit
 limbs. -/
@@ -172,39 +166,9 @@ theorem pack_spec {r : Limbs 64 5} {c : Word 64} (hr : Bounded r (2 ^ 51 - 1))
     Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow]
   omega
 
-/-- Unpack four 64-bit limbs into five 51-bit limbs. The top bit of the input is dropped. -/
-def unpack (y : Limbs 64 4) : Limbs 64 5 :=
-  #v[y[0] &&& 0x7FFFFFFFFFFFF#64,
-    ((y[0] >>> 51) + (y[1] <<< 13)) &&& 0x7FFFFFFFFFFFF#64,
-    ((y[1] >>> 38) + (y[2] <<< 26)) &&& 0x7FFFFFFFFFFFF#64,
-    ((y[2] >>> 25) + (y[3] <<< 39)) &&& 0x7FFFFFFFFFFFF#64,
-    (y[3] >>> 12) &&& 0x7FFFFFFFFFFFF#64]
-
 theorem toNat_and_mask51 (x : Word 64) : (x &&& 0x7FFFFFFFFFFFF#64).toNat = x.toNat % 2 ^ 51 := by
   rw [BitVec.toNat_and, show (0x7FFFFFFFFFFFF#64 : Word 64).toNat = 2 ^ 51 - 1 by decide,
     Nat.and_two_pow_sub_one_eq_mod]
-
-/-- `unpack` reads the 255 low bits of its input, into limbs below `2 ^ 51`. -/
-theorem unpack_value (y : Limbs 64 4) :
-    value (unpack y) = y.toNat % 2 ^ 255 ∧ Bounded (unpack y) (2 ^ 51 - 1) := by
-  have y0 := y[0].isLt
-  have y1 := y[1].isLt
-  have y2 := y[2].isLt
-  have y3 := y[3].isLt
-  rw [toNat, eval_four]
-  constructor
-  · rw [value, eval_five]
-    simp only [unpack, Vector.getElem_mk, List.getElem_toArray, List.getElem_cons_zero,
-      List.getElem_cons_succ, toNat_and_mask51, BitVec.toNat_add, BitVec.toNat_shiftLeft,
-      BitVec.toNat_ushiftRight, Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow]
-    omega
-  · refine bounded_five ?_ ?_ ?_ ?_ ?_ <;>
-      (rw [toNat_and_mask51]; omega)
-
-theorem unpack_spec {y : Limbs 64 4} (hy : y.toNat < 2 ^ 255) :
-    value (unpack y) = y.toNat ∧ Bounded (unpack y) (2 ^ 51 - 1) := by
-  obtain ⟨h₁, h₂⟩ := unpack_value y
-  exact ⟨by rw [h₁, Nat.mod_eq_of_lt hy], h₂⟩
 
 /-! ### The canonical representative -/
 
@@ -248,27 +212,13 @@ end Bingcd.Limbs.Curve25519
 
 /-! ## Inversion and division
 
-The inverse of a field element on five 51-bit limbs, by Pornin's binary gcd on four
-saturated 64-bit limbs, with 31 inner steps per round: the element is brought to canonical
-form, inverted, and unpacked. The inverse of `0` is `0`. -/
+`bingcd.rs` brings a field element on five 51-bit limbs to canonical form on four saturated
+64-bit limbs, and runs Pornin's binary gcd on it and the modulus, with 31 inner steps per round
+and the cofactors in the field. -/
 
 namespace Bingcd.Limbs.Curve25519
 
 open curve25519
-
-/-- `-1 / p` modulo `2 ^ 64`, for the Montgomery reductions of the inversion. -/
-def ninv : Word 64 := Word.negInv P[0]
-
-theorem ninv_spec : (P.toNat * ninv.toNat + 1) % 2 ^ 64 = 0 :=
-  negInv_head_spec (p := P) (by decide)
-
-theorem one_lt_toNat_P : 1 < P.toNat := by
-  rw [toNat_P]
-  exact p_prime.one_lt
-
-theorem toNat_P_mod_two : P.toNat % 2 = 1 := by
-  rw [toNat_P]
-  exact p_mod_two
 
 theorem size_toNat_P_le : P.toNat.size ≤ 255 :=
   Nat.size_le.mpr (by rw [toNat_P]; exact p_lt_two_pow_255)
@@ -278,76 +228,38 @@ theorem toNat_freeze_lt {z : Limbs 64 5} (hz : Tight z) : (freeze z).toNat < P.t
   rw [freeze_spec hz, toNat_P]
   exact Nat.mod_lt _ p_pos
 
-/-- The inverse of a field element: canonical form, Pornin's inversion on four 64-bit limbs,
-then five 51-bit limbs again. -/
-def inv (z : Limbs 64 5) : Limbs 64 5 := unpack (Pornin.porninInvL 31 P ninv (freeze z))
+/-- `2 ^ -508` in the field, as a natural number: the value of the constant `SCALE` of
+`bingcd.rs`, which the cofactors of an inversion start from. -/
+def scale : ℕ := 0x24e016b1490aa31a3cfc744c965683e6788dd408827b63fd29d6deab9cb8606c
 
-/-- The inverse of a tight element has limbs below `2 ^ 51`, and represents the inverse in
-the field, with the inverse of `0` being `0`. -/
-theorem inv_spec {z : Limbs 64 5} (hz : Tight z) :
-    Bounded (inv z) (2 ^ 51 - 1) ∧ (value (inv z) : ZMod p) = (value z : ZMod p)⁻¹ := by
-  have hy := toNat_freeze_lt hz
-  have hspec := Pornin.porninInvL_spec (K := 31) (by norm_num) (by norm_num) P ninv
-    one_lt_toNat_P toNat_P_mod_two ninv_spec (freeze z)
-  have hlt := Pornin.porninInv_lt (K := 31) (by norm_num) one_lt_toNat_P toNat_P_mod_two hy
-  rw [← hspec, toNat_P] at hlt
-  obtain ⟨hv, hb⟩ := unpack_spec (y := Pornin.porninInvL 31 P ninv (freeze z))
-    (hlt.trans p_lt_two_pow_255)
-  refine ⟨hb, ?_⟩
-  have hcast := Pornin.natCast_porninInv (p := p) (y := (freeze z).toNat) (K := 31)
-    (by norm_num) p_mod_two (by rw [← toNat_P]; exact hy)
-  rw [inv, hv, hspec, toNat_P, hcast, freeze_spec hz, ZMod.natCast_mod]
+/-- `scale` is `2 ^ -508` in the field. -/
+theorem scale_mul_two_pow : (scale : ZMod p) * 2 ^ 508 = 1 := by
+  have h1 : scale * 2 ^ 254 % p =
+      0x5e50d79435e50d79435e50d79435e50d79435e50d79435e50d79435e50d79428 := by
+    rw [p_eq_numeral]
+    decide +kernel
+  have h2 :
+      0x5e50d79435e50d79435e50d79435e50d79435e50d79435e50d79435e50d79428 * 2 ^ 254 % p = 1 := by
+    rw [p_eq_numeral]
+    decide +kernel
+  have e1 := congrArg (Nat.cast : ℕ → ZMod p) h1
+  have e2 := congrArg (Nat.cast : ℕ → ZMod p) h2
+  have h2' : ((2 : ℕ) : ZMod p) = 2 := Nat.cast_ofNat
+  rw [ZMod.natCast_mod, Nat.cast_mul, Nat.cast_pow, h2'] at e1 e2
+  rw [Nat.cast_one] at e2
+  rw [show (2 : ZMod p) ^ 508 = 2 ^ 254 * 2 ^ 254 from pow_add 2 254 254, ← mul_assoc, e1, e2]
 
-/-- For this modulus of 255 bits, 15 rounds of 31 steps followed by 43 steps on single words
-compute the same limbs as the 17 rounds of `porninInvL`. -/
-theorem porninInvSL_eq {y : Limbs 64 4} (hy : y.toNat < P.toNat) :
-    Pornin.porninInvSL 31 15 43 P ninv y = Pornin.porninInvL 31 P ninv y := by
-  have hsize := size_toNat_P_le
-  exact Pornin.porninInvSL_eq (by norm_num) (by norm_num) (by norm_num) P ninv one_lt_toNat_P
-    toNat_P_mod_two ninv_spec y hy (by omega) (by omega)
-
-/-- The inverse of a tight element, with the shorter schedule. -/
-theorem inv_eq_porninInvSL {z : Limbs 64 5} (hz : Tight z) :
-    inv z = unpack (Pornin.porninInvSL 31 15 43 P ninv (freeze z)) := by
-  rw [inv, porninInvSL_eq (toNat_freeze_lt hz)]
-
-/-- The quotient of two field elements: canonical forms, Pornin's division on four 64-bit
-limbs, then five 51-bit limbs again. It is one run of the binary gcd, with the cofactor
-started at `x`: there is no multiplication by the inverse. -/
-def div (x z : Limbs 64 5) : Limbs 64 5 :=
-  unpack (Pornin.porninDivL 31 P ninv (freeze x) (freeze z))
-
-/-- The quotient of tight elements has limbs below `2 ^ 51`, and represents the quotient in
-the field, with a quotient by `0` being `0`. -/
-theorem div_spec {x z : Limbs 64 5} (hx : Tight x) (hz : Tight z) :
-    Bounded (div x z) (2 ^ 51 - 1) ∧
-      (value (div x z) : ZMod p) = (value x : ZMod p) / (value z : ZMod p) := by
-  have hfx := toNat_freeze_lt hx
-  have hfz := toNat_freeze_lt hz
-  have hspec := Pornin.porninDivL_spec (K := 31) (by norm_num) (by norm_num) P ninv
-    one_lt_toNat_P toNat_P_mod_two ninv_spec (freeze x) (freeze z) hfx
-  have hlt := Pornin.porninDiv_lt (y := (freeze z).toNat) (K := 31) hfx
-  rw [← hspec, toNat_P] at hlt
-  obtain ⟨hv, hb⟩ := unpack_spec (y := Pornin.porninDivL 31 P ninv (freeze x) (freeze z))
-    (hlt.trans p_lt_two_pow_255)
-  refine ⟨hb, ?_⟩
-  have hcast := Pornin.natCast_porninDiv (p := p) (x := (freeze x).toNat)
-    (y := (freeze z).toNat) (K := 31) (by norm_num) p_mod_two
-    (by rw [← toNat_P]; exact hfx) (by rw [← toNat_P]; exact hfz)
-  rw [div, hv, hspec, toNat_P, hcast, freeze_spec hx, freeze_spec hz, ZMod.natCast_mod,
-    ZMod.natCast_mod]
-
-/-- For this modulus, 15 rounds followed by 43 steps on single words compute the same
-quotient as the 17 rounds of `porninDivL`. -/
-theorem porninDivSL_eq {x y : Limbs 64 4} (hx : x.toNat < P.toNat) (hy : y.toNat < P.toNat) :
-    Pornin.porninDivSL 31 15 43 P ninv x y = Pornin.porninDivL 31 P ninv x y := by
-  have hsize := size_toNat_P_le
-  exact Pornin.porninDivSL_eq (by norm_num) (by norm_num) (by norm_num) P ninv one_lt_toNat_P
-    toNat_P_mod_two ninv_spec x y hx hy (by omega) (by omega)
-
-/-- The quotient of tight elements, with the shorter schedule. -/
-theorem div_eq_porninDivSL {x z : Limbs 64 5} (hx : Tight x) (hz : Tight z) :
-    div x z = unpack (Pornin.porninDivSL 31 15 43 P ninv (freeze x) (freeze z)) := by
-  rw [div, porninDivSL_eq (toNat_freeze_lt hx) (toNat_freeze_lt hz)]
+/-- **The run of `bingcd.rs` on a field element.** For a tight `z`, 15 rounds of 31 steps and
+43 last steps on the canonical form of `z` and the modulus, from the cofactor `u`, end on
+`u * 2 ^ 508 / z` in the field, which is `0` when `z` is `0`. -/
+theorem porninDivR_freeze {z : Limbs 64 5} (hz : Tight z) (u : ZMod p) :
+    Pornin.porninDivR 31 15 43 P u (freeze z) = u * 2 ^ 508 / (value z : ZMod p) := by
+  have hsize : p.size ≤ 255 := by
+    rw [← toNat_P]
+    exact size_toNat_P_le
+  have h := Pornin.porninDivR_spec (K := 31) (r := 15) (T := 43) (by norm_num) (by norm_num)
+    (by norm_num) p_mod_two P toNat_P (freeze z) (by rw [← toNat_P]; exact toNat_freeze_lt hz)
+    (by omega) (by omega) u
+  rw [h, freeze_spec hz, ZMod.natCast_mod]
 
 end Bingcd.Limbs.Curve25519

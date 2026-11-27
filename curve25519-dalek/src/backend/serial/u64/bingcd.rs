@@ -1,21 +1,26 @@
 //! Pornin's optimized binary GCD (<https://eprint.iacr.org/2020/972>) for inversion and
-//! division modulo an odd modulus of four 64-bit limbs, with 31 inner iterations per round,
-//! and its use for the field of integers modulo `2^255 - 19` on five 51-bit limbs.
+//! division in the field of integers modulo `2^255 - 19`: the operands of the GCD are four 64-bit
+//! limbs, with 31 inner iterations per round, and the cofactors are field elements.
 //!
 //! The rounds are followed by a last run of steps on single words: once the operands are
 //! short, the steps need no approximation, and only one cofactor is updated after them.
 //! In a round, the approximations of both operands are read from the limbs at the top of
 //! `a | b`, and the two entries of a row of the transition matrix share one word.
 //!
-//! A quotient `x / y` costs no more than an inverse: the cofactors only go through linear
-//! combinations, so starting one of them at `x` instead of 1 multiplies the result by `x`.
+//! The cofactors only matter modulo `p`. A round applies a row of the transition matrix to
+//! them limb by limb, with no division by `2^K`: over the 508 steps they pick up a factor
+//! `2^508`, which is removed by starting from the constant `2^-508`. A quotient `x / y` costs
+//! one multiplication more than an inverse: the cofactors only go through linear combinations,
+//! so starting from `x * 2^-508` instead of `2^-508` multiplies the result by `x`.
 //!
-//! The code follows the Lean definitions of `Bingcd.Pornin.porninDivSL` and of
-//! `Bingcd.Limbs.Curve25519.div` and `inv` in `lean/Proofs/Helpers/Bingcd/`, function by
-//! function, at 64-bit words: its extraction by Aeneas is proved equal to them.
+//! The code follows the Lean definition of `Bingcd.Pornin.porninDivR` in
+//! `lean/Proofs/Helpers/Bingcd/`, function by function, at 64-bit words: its extraction by
+//! Aeneas is proved equal to it.
 //!
 //! There is no branch on the operands: decisions are turned into masks and selections, and
 //! the loops have fixed lengths.
+
+use super::field::FieldElement51;
 
 /// The number of inner iterations per round.
 pub const K: u32 = 31;
@@ -36,13 +41,6 @@ pub fn select(c: bool, a: u64, b: u64) -> u64 {
     b ^ (mask(c) & (a ^ b))
 }
 
-/// `a + b + c`, as a word and a carry.
-#[inline(always)]
-pub fn addc(a: u64, b: u64, c: bool) -> (u64, bool) {
-    let s = (a as u128) + (b as u128) + (c as u128);
-    (s as u64, (s >> 64) != 0)
-}
-
 /// `a - b - c`, as a word and a borrow.
 ///
 /// The borrow is the top bit of the difference computed on 128 bits. This compiles to a
@@ -52,13 +50,6 @@ pub fn addc(a: u64, b: u64, c: bool) -> (u64, bool) {
 pub fn subb(a: u64, b: u64, c: bool) -> (u64, bool) {
     let z = (a as u128).wrapping_sub(b as u128).wrapping_sub(c as u128);
     (z as u64, (z >> 127) != 0)
-}
-
-/// `a * b + c + d`, as a low word and a high word.
-#[inline(always)]
-pub fn mul_add2(a: u64, b: u64, c: u64, d: u64) -> (u64, u64) {
-    let p = (a as u128) * (b as u128) + (c as u128) + (d as u128);
-    (p as u64, (p >> 64) as u64)
 }
 
 /// `a * f + b * g + c` for unsigned `a`, `b` and signed `f`, `g`, `c` (in two's complement),
@@ -232,15 +223,6 @@ pub fn shr_low<const S: u32>(r: &[u64; 4], c: u64) -> [u64; 4] {
     ]
 }
 
-/// `a + b` modulo `2^256`.
-pub fn add4(a: &[u64; 4], b: &[u64; 4]) -> [u64; 4] {
-    let (r0, c0) = addc(a[0], b[0], false);
-    let (r1, c1) = addc(a[1], b[1], c0);
-    let (r2, c2) = addc(a[2], b[2], c1);
-    let (r3, _) = addc(a[3], b[3], c2);
-    [r0, r1, r2, r3]
-}
-
 /// `a - b` modulo `2^256`, and the borrow.
 pub fn sub4(a: &[u64; 4], b: &[u64; 4]) -> ([u64; 4], bool) {
     let (r0, c0) = subb(a[0], b[0], false);
@@ -258,12 +240,6 @@ pub fn select4(c: bool, a: &[u64; 4], b: &[u64; 4]) -> [u64; 4] {
         select(c, a[2], b[2]),
         select(c, a[3], b[3]),
     ]
-}
-
-/// Whether `a = b`.
-pub fn eq4(a: &[u64; 4], b: &[u64; 4]) -> bool {
-    let x = (a[0] ^ b[0]) | (a[1] ^ b[1]) | (a[2] ^ b[2]) | (a[3] ^ b[3]);
-    x == 0
 }
 
 /// Subtract `p` from the five-limb value `(a, c)` unless that would be negative.
@@ -284,63 +260,6 @@ pub fn shr_abs(r: &[u64; 4], c: u64) -> ([u64; 4], bool) {
 pub fn apply_row(a: &[u64; 4], b: &[u64; 4], f: u64, g: u64) -> ([u64; 4], bool) {
     let (r, c) = lin_comb(a, b, f, g);
     shr_abs(&r, c)
-}
-
-/// `acc + a * b + c`, as four limbs and a carry word.
-pub fn mul_add_row(acc: &[u64; 4], a: &[u64; 4], b: u64, c: u64) -> ([u64; 4], u64) {
-    let (r0, c0) = mul_add2(a[0], b, acc[0], c);
-    let (r1, c1) = mul_add2(a[1], b, acc[1], c0);
-    let (r2, c2) = mul_add2(a[2], b, acc[2], c1);
-    let (r3, c3) = mul_add2(a[3], b, acc[3], c2);
-    ([r0, r1, r2, r3], c3)
-}
-
-/// The end of the Montgomery reduction by `2^S`: the signed five-limb value `(r, c)`, a
-/// multiple of `2^S`, is divided by `2^S` and brought to `[0, m)` by adding or subtracting `m`.
-pub fn redc_tail<const S: u32>(r: &[u64; 4], c: u64, m: &[u64; 4]) -> [u64; 4] {
-    let low = shr_low::<S>(r, c);
-    let top = c >> S;
-    let neg = (c >> 63) == 1;
-    select4(neg, &add4(&low, m), &cond_sub(&low, top != 0, m))
-}
-
-/// `(u * f + v * g) / 2^S` modulo `m`, for signed words `f` and `g` with
-/// `|f| + |g| <= 2^S` and `0 < S <= 61`; `ninv` is `-1 / m` modulo `2^64`. The shift is `K`
-/// in a round and the number of last steps after them.
-#[inline(always)]
-pub fn lin_comb_redc<const S: u32>(
-    u: &[u64; 4],
-    v: &[u64; 4],
-    f: u64,
-    g: u64,
-    m: &[u64; 4],
-    ninv: u64,
-) -> [u64; 4] {
-    let (r, c) = lin_comb(u, v, f, g);
-    let q = r[0].wrapping_mul(ninv) & ((1u64 << S) - 1);
-    let (s, hi) = mul_add_row(&r, m, q, 0);
-    redc_tail::<S>(&s, hi.wrapping_add(c), m)
-}
-
-/// `±(u * f + v * g) / 2^K` modulo `m`, negated when `neg` is set.
-#[inline(always)]
-pub fn cof_row(
-    u: &[u64; 4],
-    v: &[u64; 4],
-    f: u64,
-    g: u64,
-    neg: bool,
-    m: &[u64; 4],
-    ninv: u64,
-) -> [u64; 4] {
-    lin_comb_redc::<K>(
-        u,
-        v,
-        select(neg, 0u64.wrapping_sub(f), f),
-        select(neg, 0u64.wrapping_sub(g), g),
-        m,
-        ninv,
-    )
 }
 
 /// `a | b`, limb by limb. It is as long as the longer of `a` and `b`.
@@ -375,24 +294,81 @@ pub fn approx_top(m: &[u64; 4], a: &[u64; 4]) -> u64 {
 }
 
 // ---------------------------------------------------------------------------
+// Cofactors
+// ---------------------------------------------------------------------------
+
+/// The limbs of `2^46 * p` in radix `2^51`: the first one, and the four others. Added to a
+/// row of cofactors, they keep every limb nonnegative.
+pub const P46_0: u128 = 0x1fffffffffffb400000000000;
+pub const P46_I: u128 = 0x1ffffffffffffc00000000000;
+
+/// `c + a * f + b * g` on 128 bits, for signed words `f` and `g` (in two's complement).
+#[inline(always)]
+pub fn cof_limb(c: u128, a: u64, b: u64, f: u64, g: u64) -> u128 {
+    c.wrapping_add((a as u128).wrapping_mul(f as i64 as i128 as u128))
+        .wrapping_add((b as u128).wrapping_mul(g as i64 as i128 as u128))
+}
+
+/// The field element with limbs `c0, ..., c4` in radix `2^51`, each below `2^98`: the carry
+/// chain that ends a field multiplication. The limbs of the result are below `2^52`.
+#[inline(always)]
+pub fn carry_wide(c0: u128, c1: u128, c2: u128, c3: u128, c4: u128) -> FieldElement51 {
+    let c1 = c1 + (((c0 >> 51) as u64) as u128);
+    let c2 = c2 + (((c1 >> 51) as u64) as u128);
+    let c3 = c3 + (((c2 >> 51) as u64) as u128);
+    let c4 = c4 + (((c3 >> 51) as u64) as u128);
+    let carry = (c4 >> 51) as u64;
+    let r0 = ((c0 as u64) & MASK51) + carry * 19;
+    FieldElement51([
+        r0 & MASK51,
+        ((c1 as u64) & MASK51) + (r0 >> 51),
+        (c2 as u64) & MASK51,
+        (c3 as u64) & MASK51,
+        (c4 as u64) & MASK51,
+    ])
+}
+
+/// `u * f + v * g` in the field, negated when `neg` is set, for signed words `f` and `g` of at
+/// most `2^43` in absolute value and limbs of `u` and `v` below `2^52`. There is no division
+/// by a power of two, and no decision on the cofactors: each limb is `u[i] * f + v[i] * g`
+/// plus a limb of `2^46 * p`, which keeps it nonnegative.
+#[inline(always)]
+pub fn cof_row(
+    u: &FieldElement51,
+    v: &FieldElement51,
+    f: u64,
+    g: u64,
+    neg: bool,
+) -> FieldElement51 {
+    let f = select(neg, 0u64.wrapping_sub(f), f);
+    let g = select(neg, 0u64.wrapping_sub(g), g);
+    carry_wide(
+        cof_limb(P46_0, u.0[0], v.0[0], f, g),
+        cof_limb(P46_I, u.0[1], v.0[1], f, g),
+        cof_limb(P46_I, u.0[2], v.0[2], f, g),
+        cof_limb(P46_I, u.0[3], v.0[3], f, g),
+        cof_limb(P46_I, u.0[4], v.0[4], f, g),
+    )
+}
+
+// ---------------------------------------------------------------------------
 // Rounds
 // ---------------------------------------------------------------------------
 
-/// The state of the algorithm: the operands `a`, `b` and their cofactors `u`, `v`.
+/// The state of the algorithm: the operands `a`, `b` on four limbs, and their cofactors
+/// `u`, `v` as field elements.
 #[derive(Clone, Copy)]
 pub struct State {
     pub a: [u64; 4],
-    pub u: [u64; 4],
+    pub u: FieldElement51,
     pub b: [u64; 4],
-    pub v: [u64; 4],
+    pub v: FieldElement51,
 }
 
 /// One round: the approximations are read from the operands, the inner loop runs on words,
 /// and the transition matrix is applied to the operands and to the cofactors.
-// `round`, `cof_row` and `lin_comb_redc` are inlined together: this measured about 50 ns
-// faster per inversion, while inlining only some of the three was slower than none.
 #[inline(always)]
-pub fn round(m: &[u64; 4], ninv: u64, s: &State) -> State {
+pub fn round(s: &State) -> State {
     // the top of `a | b` is the top of the longer operand
     let ab = or4(&s.a, &s.b);
     let t = inner(approx_top(&ab, &s.a), approx_top(&ab, &s.b));
@@ -400,51 +376,10 @@ pub fn round(m: &[u64; 4], ninv: u64, s: &State) -> State {
     let (b1, nb) = apply_row(&s.a, &s.b, t.f1, t.g1);
     State {
         a: a1,
-        u: cof_row(&s.u, &s.v, t.f0, t.g0, na, m, ninv),
+        u: cof_row(&s.u, &s.v, t.f0, t.g0, na),
         b: b1,
-        v: cof_row(&s.u, &s.v, t.f1, t.g1, nb, m, ninv),
+        v: cof_row(&s.u, &s.v, t.f1, t.g1, nb),
     }
-}
-
-/// The quotient `x / y` modulo the odd modulus `m`, for `x, y < m`, by `rounds` rounds of
-/// Pornin's algorithm followed by `T` steps on single words; `ninv` is `-1 / m` modulo
-/// `2^64`. The result is zero if `y` is not invertible. The run is that of an inversion, with
-/// the cofactor `u` started at `x` instead of 1.
-///
-/// For a modulus of `l` bits, the schedule must satisfy `0 < T <= 61`,
-/// `31 * rounds + T >= 2 * l - 2`, which is the number of steps after which `b` is the gcd,
-/// and `31 * rounds + 65 >= 2 * l`, for the operands to fit in a word after the rounds
-/// (unless `a` is zero, and then the steps do not depend on `b`).
-pub fn pornin_div<const T: u32>(
-    m: &[u64; 4],
-    ninv: u64,
-    rounds: u32,
-    x: &[u64; 4],
-    y: &[u64; 4],
-) -> [u64; 4] {
-    let mut s = State {
-        a: *y,
-        u: *x,
-        b: *m,
-        v: [0, 0, 0, 0],
-    };
-    let mut i = 0u32;
-    while i < rounds {
-        s = round(m, ninv, &s);
-        i += 1;
-    }
-    let t = tail::<T>(s.a[0], s.b[0]);
-    // only `v` is needed, and `b` is known to be nonnegative: there is no sign to fix
-    let v = lin_comb_redc::<T>(&s.u, &s.v, t.f1, t.g1, m, ninv);
-    // the final `b`: the word the last steps end on, in place of the low limb of `b`
-    let b = [t.b, s.b[1], s.b[2], s.b[3]];
-    select4(eq4(&b, &[1, 0, 0, 0]), &v, &[0, 0, 0, 0])
-}
-
-/// The inverse of `y < m` modulo the odd modulus `m`: the quotient of 1 by `y`, with the
-/// schedule of `pornin_div`. The result is zero if `y` is not invertible.
-pub fn pornin_inv<const T: u32>(m: &[u64; 4], ninv: u64, rounds: u32, y: &[u64; 4]) -> [u64; 4] {
-    pornin_div::<T>(m, ninv, rounds, &[1, 0, 0, 0], y)
 }
 
 // ---------------------------------------------------------------------------
@@ -458,9 +393,6 @@ pub const P: [u64; 4] = [
     0xFFFFFFFFFFFFFFFF,
     0x7FFFFFFFFFFFFFFF,
 ];
-
-/// `-1 / p` modulo `2^64`.
-pub const NINV: u64 = 0x86BCA1AF286BCA1B;
 
 /// The number of rounds for a 255-bit modulus: after `15 * 31 = 465` steps the operands have
 /// at most 44 bits, or `a` is zero.
@@ -494,34 +426,49 @@ pub fn freeze(a: &[u64; 5]) -> [u64; 4] {
     cond_sub(&packed, false, &P)
 }
 
-/// Five 51-bit limbs from the 255 low bits of four 64-bit limbs.
-pub fn unpack(y: &[u64; 4]) -> [u64; 5] {
-    [
-        y[0] & MASK51,
-        ((y[0] >> 51).wrapping_add(y[1] << 13)) & MASK51,
-        ((y[1] >> 38).wrapping_add(y[2] << 26)) & MASK51,
-        ((y[2] >> 25).wrapping_add(y[3] << 39)) & MASK51,
-        (y[3] >> 12) & MASK51,
-    ]
+/// `2^-508` in the field: the cofactors pick up a factor `2^K` in every round and `2^TAIL` in
+/// the last steps, `2^(K * ROUNDS + TAIL) = 2^508` in all.
+pub const SCALE: FieldElement51 = FieldElement51([
+    0x6deab9cb8606c,
+    0x1104f6c7fa53a,
+    0x15a0f99e23750,
+    0x18d1e7e3a264b,
+    0x24e016b1490aa,
+]);
+
+/// `u * 2^508 / z` in the field, and zero if `z` is zero: the rounds and the last steps of
+/// Pornin's algorithm on the canonical representative of `z` and the modulus, with the cofactor
+/// of `z` started at `u`. The limbs of `z` are at most `2^51 + 2^23`, those of `u` and of the
+/// result are below `2^52`.
+pub fn scaled_div(u: &FieldElement51, z: &[u64; 5]) -> FieldElement51 {
+    let mut s = State {
+        a: freeze(z),
+        u: *u,
+        b: P,
+        v: FieldElement51::ZERO,
+    };
+    let mut i = 0u32;
+    while i < ROUNDS {
+        s = round(&s);
+        i += 1;
+    }
+    let t = tail::<TAIL>(s.a[0], s.b[0]);
+    // only `v` is needed, and `b` is known to be nonnegative: there is no sign to fix
+    cof_row(&s.u, &s.v, t.f1, t.g1, false)
 }
 
-/// The inverse of a field element modulo `2^255 - 19`, on five 51-bit limbs; the inverse of
-/// zero is zero. The limbs of the input are at most `2^51 + 2^23`, those of the result are
-/// below `2^51`.
-pub fn invert(z: &[u64; 5]) -> [u64; 5] {
-    unpack(&pornin_inv::<TAIL>(&P, NINV, ROUNDS, &freeze(z)))
+/// The inverse of a field element modulo `2^255 - 19`; the inverse of zero is zero. The limbs
+/// of the input are at most `2^51 + 2^23`, those of the result are below `2^52`.
+// Not inlined: when it is, the callers' own field arithmetic was measured to compile worse.
+#[inline(never)]
+pub fn invert(z: &[u64; 5]) -> FieldElement51 {
+    scaled_div(&SCALE, z)
 }
 
-/// The quotient `x / z` of two field elements modulo `2^255 - 19`, on five 51-bit limbs; a
-/// quotient by zero is zero. The limbs of the inputs are at most `2^51 + 2^23`, those of the
-/// result are below `2^51`. This is one run of the binary gcd, without the multiplication
-/// that `x * invert(z)` needs.
-pub fn divide(x: &[u64; 5], z: &[u64; 5]) -> [u64; 5] {
-    unpack(&pornin_div::<TAIL>(
-        &P,
-        NINV,
-        ROUNDS,
-        &freeze(x),
-        &freeze(z),
-    ))
+/// The quotient `x / z` of two field elements modulo `2^255 - 19`; a quotient by zero is zero.
+/// The limbs of `z` are at most `2^51 + 2^23`, those of `x` are below `2^54`, and those of the
+/// result are below `2^52`. This is one run of the binary gcd, started from `x * 2^-508`.
+#[inline(never)]
+pub fn divide(x: &FieldElement51, z: &[u64; 5]) -> FieldElement51 {
+    scaled_div(&(x * &SCALE), z)
 }

@@ -24,9 +24,10 @@ theorem div_bingcd_spec (self rhs : FieldElement2625) :
       (rhs.asNat % p ≠ 0 → r.asNat * rhs.asNat % p = self.asNat % p) ∧
       (rhs.asNat % p = 0 → r.asNat % p = 0) ∧ r.LimbsLt 26 ⦄ := by
   unfold div_bingcd
-  step with weak_reduce_spec as ⟨fe, hmod, _, hfeb⟩
+  step with weak_reduce_spec as ⟨fe, hmod, hfe26, _⟩
   step with weak_reduce_spec as ⟨fe1, hmod1, _, hfe1b⟩
-  step with bingcd.divide_correct fe fe1 hfeb hfe1b as ⟨r, hr, hrb⟩
+  step with bingcd.divide_correct fe fe1 (fun i hi => (hfe26 i hi).trans (by norm_num)) hfe1b
+    as ⟨r, hr, hrb⟩
   obtain ⟨h1, h0⟩ := mod_of_toField_div hr
   refine ⟨fun hx => ?_, fun hx => h0 (hmod1.trans hx), hrb⟩
   rw [Nat.mul_mod, ← hmod1, ← Nat.mul_mod, ← hmod]

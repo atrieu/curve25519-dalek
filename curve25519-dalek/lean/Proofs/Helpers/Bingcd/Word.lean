@@ -19,13 +19,11 @@ a signed number by `BitVec.toInt`. -/
 A machine word of `w` bits is a `BitVec w`; `Word w` is a reducible synonym, so that all
 of the core `BitVec` API applies. The bitwidth `w` is a variable throughout.
 
-This section covers the *unsigned* view `BitVec.toNat` and the double-width primitives that
-multi-limb arithmetic is built from. Each primitive returns its result low part first and
-is specified by one exact equation over `ℕ` or `ℤ`:
+This section covers the *unsigned* view `BitVec.toNat` and the primitives that multi-limb
+arithmetic is built from. Each primitive returns its result low part first and is specified by
+one exact equation over `ℕ` or `ℤ`:
 
-* `Word.addc`: add with carry, `s + 2 ^ w * c' = a + b + c`;
 * `Word.subb`: subtract with borrow, `d - 2 ^ w * b' = a - b - c`;
-* `Word.mulAdd2`: multiply and add two words, `lo + 2 ^ w * hi = a * b + c + d`.
 * `Word.div2by1`: divide two words by one, `q * d + r = hi * 2 ^ w + lo` when `hi < d`.
 
 It also defines the branch-free `Word.select`. -/
@@ -38,36 +36,6 @@ abbrev Word (w : ℕ) : Type := BitVec w
 namespace Word
 
 variable {w : ℕ}
-
-/-! ### Low and high halves of a natural number -/
-
-/-- The word made of the bits `w, …, 2 * w - 1` of a natural number. -/
-def highOfNat (w x : ℕ) : Word w := BitVec.ofNat w (x / 2 ^ w)
-
-theorem toNat_ofNat_add_toNat_highOfNat {x : ℕ} (hx : x < 2 ^ w * 2 ^ w) :
-    (BitVec.ofNat w x).toNat + 2 ^ w * (highOfNat w x).toNat = x := by
-  have h : x / 2 ^ w < 2 ^ w := Nat.div_lt_of_lt_mul hx
-  rw [highOfNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt h, Nat.mod_add_div]
-
-/-! ### Addition with carry -/
-
-/-- Add with carry: the sum `a + b + c` as a word and a carry out. -/
-def addc (a b : Word w) (c : Bool) : Word w × Bool :=
-  let s := a.toNat + b.toNat + c.toNat
-  (BitVec.ofNat w s, decide (2 ^ w ≤ s))
-
-theorem addc_spec (a b : Word w) (c : Bool) :
-    (addc a b c).1.toNat + 2 ^ w * (addc a b c).2.toNat = a.toNat + b.toNat + c.toNat := by
-  have ha := a.isLt
-  have hb := b.isLt
-  have hc := c.toNat_le
-  simp only [addc, BitVec.toNat_ofNat]
-  by_cases h : 2 ^ w ≤ a.toNat + b.toNat + c.toNat
-  · rw [Nat.mod_eq_sub_mod h, Nat.mod_eq_of_lt (by omega)]
-    simp only [h, decide_true, Bool.toNat_true]
-    omega
-  · rw [Nat.mod_eq_of_lt (by omega)]
-    simp [h]
 
 /-! ### Subtraction with borrow -/
 
@@ -96,30 +64,6 @@ theorem subb_spec (a b : Word w) (c : Bool) :
 /-- The borrow out of `subb` is set exactly when the true difference is negative. -/
 theorem subb_snd (a b : Word w) (c : Bool) :
     (subb a b c).2 = decide (a.toNat < b.toNat + c.toNat) := rfl
-
-/-! ### Double-width multiplication -/
-
-/-- `a * b + c + d` always fits in two words; this is the inner step of schoolbook and
-Montgomery multiplication. The result is `(lo, hi)`. -/
-def mulAdd2 (a b c d : Word w) : Word w × Word w :=
-  let p := a.toNat * b.toNat + c.toNat + d.toNat
-  (BitVec.ofNat w p, highOfNat w p)
-
-theorem mulAdd2_spec (a b c d : Word w) :
-    (mulAdd2 a b c d).1.toNat + 2 ^ w * (mulAdd2 a b c d).2.toNat =
-      a.toNat * b.toNat + c.toNat + d.toNat := by
-  apply toNat_ofNat_add_toNat_highOfNat
-  have ha := a.isLt
-  have hb := b.isLt
-  have hc := c.isLt
-  have hd := d.isLt
-  have h : a.toNat * b.toNat ≤ (2 ^ w - 1) * (2 ^ w - 1) :=
-    Nat.mul_le_mul (by omega) (by omega)
-  have hpos : 0 < 2 ^ w := Nat.two_pow_pos w
-  obtain ⟨m, hm⟩ : ∃ m, 2 ^ w = m + 1 := ⟨2 ^ w - 1, by omega⟩
-  rw [hm] at ha hb hc hd h ⊢
-  simp only [Nat.add_sub_cancel] at h
-  nlinarith
 
 /-! ### Double-width division -/
 
@@ -195,30 +139,6 @@ theorem shiftLeft_one (x : Word w) : x <<< 1 = x + x := by
   apply BitVec.eq_of_toNat_eq
   rw [BitVec.toNat_shiftLeft, BitVec.toNat_add, Nat.shiftLeft_eq, Nat.pow_one, Nat.mul_two]
 
-/-! ### The ring of words -/
-
-/-- Mathlib's isomorphism `Fin n ≃+* ZMod n` sends an element to the residue of its value. -/
-theorem finEquiv_apply (n : ℕ) [NeZero n] (x : Fin n) :
-    ZMod.finEquiv n x = ((x : ℕ) : ZMod n) := by
-  cases n with
-  | zero => exact (NeZero.ne 0 rfl).elim
-  | succ m => exact (Fin.cast_val_eq_self x).symm
-
-/-- Words of `w` bits are the integers modulo `2 ^ w`, as rings. This is the composition of
-Mathlib's `BitVec.equivFin` and `ZMod.finEquiv`. -/
-def equivZMod : Word w ≃+* ZMod (2 ^ w) := BitVec.equivFin.trans (ZMod.finEquiv (2 ^ w))
-
-theorem equivZMod_apply (a : Word w) : equivZMod a = (a.toNat : ZMod (2 ^ w)) := by
-  rw [equivZMod, RingEquiv.trans_apply, BitVec.equivFin_apply, finEquiv_apply]
-  rfl
-
-/-- Reading a word as a residue modulo `2 ^ w`, as a ring homomorphism. -/
-def toZMod : Word w →+* ZMod (2 ^ w) := (equivZMod : Word w ≃+* ZMod (2 ^ w))
-
-theorem toZMod_apply (a : Word w) : toZMod a = (a.toNat : ZMod (2 ^ w)) := equivZMod_apply a
-
-theorem toZMod_injective : Function.Injective (toZMod (w := w)) := equivZMod.injective
-
 end Word
 
 end Bingcd
@@ -287,79 +207,5 @@ theorem toInt_add_self {x : Word w} (h : InSRange w (2 * x.toInt)) :
     (x + x).toInt = 2 * x.toInt := by
   rw [two_mul] at h ⊢
   exact toInt_add_of_inSRange h
-
-end Bingcd.Word
-
-/-! ## The constant of a Montgomery reduction
-
-Montgomery reduction needs the inverse of the (odd) modulus modulo `2 ^ w`.
-`Word.invNewton x k` computes it by `k` Newton (Hensel) steps `y ↦ y * (2 - x * y)`, each of
-which doubles the number of correct low bits: `1 - x * y'` is the square of `1 - x * y`.
-
-* `Word.mul_inv`: `x * inv x = 1` for odd `x`.
-* `Word.negInv_spec`: `x * negInv x + 1` is a multiple of `2 ^ w`. -/
-
-namespace Bingcd.Word
-
-variable {w : ℕ}
-
-/-! ### Inverse modulo `2 ^ w` -/
-
-/-- `k` Newton steps towards the inverse of `x` modulo `2 ^ w`, starting from `1`. -/
-def invNewton (x : Word w) : ℕ → Word w
-  | 0 => 1
-  | k + 1 => invNewton x k * (2 - x * invNewton x k)
-
-/-- Each Newton step squares the error. -/
-theorem one_sub_mul_invNewton (x : Word w) (k : ℕ) :
-    1 - x * invNewton x k = (1 - x) ^ 2 ^ k := by
-  induction k with
-  | zero => simp [invNewton]
-  | succ k ih =>
-    rw [pow_succ, pow_mul, ← ih, invNewton]
-    ring
-
-/-- `2 ^ k = 0` in `Word w` as soon as `w ≤ k`. -/
-theorem two_pow_eq_zero {k : ℕ} (h : w ≤ k) : (2 : Word w) ^ k = 0 := by
-  apply toZMod_injective
-  rw [map_pow, map_zero, map_ofNat]
-  have : ((2 ^ k : ℕ) : ZMod (2 ^ w)) = 0 :=
-    (ZMod.natCast_eq_zero_iff _ _).mpr (pow_dvd_pow 2 h)
-  exact_mod_cast this
-
-/-- After enough Newton steps the inverse is exact. -/
-theorem mul_invNewton {x : Word w} (hx : x.toNat % 2 = 1) {k : ℕ} (hk : w ≤ 2 ^ k) :
-    x * invNewton x k = 1 := by
-  -- `1 - x` is even, so its `2 ^ k`-th power vanishes
-  have hev : (1 : Word w) - x = 2 * -BitVec.ofNat w (x.toNat / 2) := by
-    apply toZMod_injective
-    simp only [map_sub, map_one, map_mul, map_neg, map_ofNat, toZMod_apply, BitVec.toNat_ofNat,
-      ZMod.natCast_mod]
-    have h2 : x.toNat = 2 * (x.toNat / 2) + 1 := by omega
-    conv_lhs => rw [h2]
-    push_cast
-    ring
-  have h := one_sub_mul_invNewton x k
-  rw [hev, mul_pow, two_pow_eq_zero hk, zero_mul] at h
-  exact (sub_eq_zero.mp h).symm
-
-/-- The inverse of an odd word modulo `2 ^ w`. -/
-def inv (x : Word w) : Word w := invNewton x (Nat.clog 2 w)
-
-theorem mul_inv {x : Word w} (hx : x.toNat % 2 = 1) : x * inv x = 1 :=
-  mul_invNewton hx (Nat.le_pow_clog (by norm_num) w)
-
-/-- The negated inverse of an odd word modulo `2 ^ w`, the constant of unsigned Montgomery
-reduction. -/
-def negInv (x : Word w) : Word w := -inv x
-
-theorem mul_negInv {x : Word w} (hx : x.toNat % 2 = 1) : x * negInv x = -1 := by
-  rw [negInv, mul_neg, mul_inv hx]
-
-theorem negInv_spec {x : Word w} (hx : x.toNat % 2 = 1) :
-    (x.toNat * (negInv x).toNat + 1) % 2 ^ w = 0 := by
-  have h : toZMod (x * negInv x + 1) = 0 := by rw [mul_negInv hx, neg_add_cancel, map_zero]
-  rw [map_add, map_mul, map_one, toZMod_apply, toZMod_apply] at h
-  exact Nat.mod_eq_zero_of_dvd ((ZMod.natCast_eq_zero_iff _ _).mp (by exact_mod_cast h))
 
 end Bingcd.Word

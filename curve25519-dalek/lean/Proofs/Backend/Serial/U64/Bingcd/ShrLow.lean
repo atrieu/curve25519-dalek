@@ -46,13 +46,6 @@ private theorem shr_push_pop (r0 r1 r2 r3 c : Word 64) {k : ℕ} (hk : k < 64) :
   rw [h, shr_five _ _ _ _ _ hk]
   rfl
 
-/-- The top limb of a five-limb value shifted right by `k` bits. -/
-theorem shr_push_back (r0 r1 r2 r3 c : Word 64) {k : ℕ} (hk : k < 64) :
-    (Limbs.shr ((#v[r0, r1, r2, r3] : Limbs 64 4).push c) k).1.back = c >>> k := by
-  have h : (#v[r0, r1, r2, r3] : Limbs 64 4).push c = #v[r0, r1, r2, r3, c] := rfl
-  rw [h, shr_five _ _ _ _ _ hk]
-  rfl
-
 /-- The shift of a five-limb value, for any amount `0 < S < 64`. -/
 @[step]
 theorem shr_low_spec (S : U32) (r : Array U64 4#usize) (c : U64) (hS0 : 0 < S.val)

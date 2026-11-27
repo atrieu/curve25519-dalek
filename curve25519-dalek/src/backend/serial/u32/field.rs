@@ -319,7 +319,7 @@ impl FieldElement2625 {
     /// zero is zero. The limbs are first weakly reduced, which is the bound that the verified
     /// `bingcd::invert` asks for.
     pub fn invert_bingcd(&self) -> FieldElement2625 {
-        FieldElement2625(super::bingcd::invert(&self.weak_reduce().0))
+        super::bingcd::invert(&self.weak_reduce().0)
     }
 
     /// The quotient of this field element by `rhs`, by one run of Pornin's optimized binary
@@ -327,10 +327,7 @@ impl FieldElement2625 {
     /// are first weakly reduced, which is the bound that the verified `bingcd::divide` asks
     /// for.
     pub fn div_bingcd(&self, rhs: &FieldElement2625) -> FieldElement2625 {
-        FieldElement2625(super::bingcd::divide(
-            &self.weak_reduce().0,
-            &rhs.weak_reduce().0,
-        ))
+        super::bingcd::divide(&self.weak_reduce(), &rhs.weak_reduce().0)
     }
 
     /// Invert the sign of this field element
@@ -368,7 +365,7 @@ impl FieldElement2625 {
     /// In other words, each coefficient of the result is bounded by
     /// either `2^(25 + 0.007)` or `2^(26 + 0.007)`, as appropriate.
     #[rustfmt::skip] // keep alignment of carry chain
-    const fn reduce(mut z: [u64; 10]) -> FieldElement2625 {
+    pub(crate) const fn reduce(mut z: [u64; 10]) -> FieldElement2625 {
 
         const LOW_25_BITS: u64 = (1 << 25) - 1;
         const LOW_26_BITS: u64 = (1 << 26) - 1;

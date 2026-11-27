@@ -79,9 +79,6 @@ theorem toNat_set_zero (a : Limbs w (n + 1)) (x : Word w) :
 theorem toNat_mod_two_pow (a : Limbs w (n + 1)) : a.toNat % 2 ^ w = a[0].toNat := by
   rw [toNat_eq_head_add, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt a[0].isLt]
 
-theorem toNat_modEq_head (a : Limbs w (n + 1)) : a.toNat ≡ a[0].toNat [MOD 2 ^ w] := by
-  rw [Nat.ModEq, toNat_mod_two_pow, Nat.mod_eq_of_lt a[0].isLt]
-
 /-- Induction on limb vectors by pushing a most significant limb. -/
 @[elab_as_elim]
 theorem induction {motive : ∀ n, Limbs w n → Prop} (empty : motive 0 #v[])
@@ -105,10 +102,6 @@ theorem toNat_lt (a : Limbs w n) : a.toNat < 2 ^ (w * n) := by
 theorem toNat_pop (a : Limbs w (n + 1)) : toNat a.pop = a.toNat % 2 ^ (w * n) := by
   rw [toNat_eq_pop_add, Nat.add_mul_mod_self_left,
     Nat.mod_eq_of_lt (toNat_lt (n := n) a.pop)]
-
-theorem toNat_back (a : Limbs w (n + 1)) : a.back.toNat = a.toNat / 2 ^ (w * n) := by
-  rw [toNat_eq_pop_add, Nat.add_mul_div_left _ _ (Nat.two_pow_pos _),
-    Nat.div_eq_of_lt (toNat_lt (n := n) a.pop), Nat.zero_add]
 
 /-- Limb `i` holds the bits `w * i, …, w * i + w - 1` of the value. -/
 theorem toNat_getElem (a : Limbs w n) (i : ℕ) (hi : i < n) :
@@ -147,9 +140,6 @@ theorem toNat_ofNat (n x : ℕ) : (ofNat n x : Limbs w n).toNat = x % 2 ^ (w * n
   | succ n ih =>
     rw [ofNat, toNat_push, ih, BitVec.toNat_ofNat, Nat.mul_succ, pow_add, Nat.mod_mul]
 
-theorem toNat_ofNat_of_lt {x : ℕ} (h : x < 2 ^ (w * n)) : (ofNat n x : Limbs w n).toNat = x := by
-  rw [toNat_ofNat, Nat.mod_eq_of_lt h]
-
 /-- The zero of `n` limbs is `ofNat n 0`. -/
 @[simp] theorem toNat_ofNat_zero : (ofNat n 0 : Limbs w n).toNat = 0 := by simp [toNat_ofNat]
 
@@ -157,46 +147,14 @@ end Limbs
 
 end Bingcd
 
-/-! ## Addition and subtraction
+/-! ## Subtraction
 
-Ripple-carry addition and subtraction of multi-limb integers, built from the one-word
-primitives `Word.addc` and `Word.subb`. -/
+Ripple-borrow subtraction of multi-limb integers, built from the one-word primitive
+`Word.subb`. -/
 
 namespace Bingcd.Limbs
 
 variable {w n : ℕ}
-
-/-! ### Addition -/
-
-/-- Add with carry: ripple the carry from the least to the most significant limb. -/
-def addc : {n : ℕ} → Limbs w n → Limbs w n → Bool → Limbs w n × Bool
-  | 0, _, _, c => (#v[], c)
-  | _ + 1, a, b, c =>
-    let r := addc a.pop b.pop c
-    let s := Word.addc a.back b.back r.2
-    (r.1.push s.1, s.2)
-
-theorem addc_spec (a b : Limbs w n) (c : Bool) :
-    toNat (addc a b c).1 + 2 ^ (w * n) * (addc a b c).2.toNat =
-      a.toNat + b.toNat + c.toNat := by
-  induction n with
-  | zero => simp [addc, toNat_zero]
-  | succ n ih =>
-    have h₁ := ih a.pop b.pop
-    have h₂ := Word.addc_spec a.back b.back (addc a.pop b.pop c).2
-    simp only [addc, toNat_push, Nat.add_one_sub_one]
-    rw [toNat_eq_pop_add a, toNat_eq_pop_add b, Nat.mul_succ, pow_add]
-    linear_combination h₁ + 2 ^ (w * n) * h₂
-
-/-- Wrapping addition. -/
-def add (a b : Limbs w n) : Limbs w n := (addc a b false).1
-
-theorem toNat_add (a b : Limbs w n) : toNat (add a b) = (a.toNat + b.toNat) % 2 ^ (w * n) := by
-  have h := addc_spec a b false
-  rw [Bool.toNat_false, Nat.add_zero] at h
-  rw [add, ← h, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (toNat_lt _)]
-
-/-! ### Subtraction -/
 
 /-- Subtract with borrow: ripple the borrow from the least to the most significant limb. -/
 def subb : {n : ℕ} → Limbs w n → Limbs w n → Bool → Limbs w n × Bool
@@ -268,39 +226,6 @@ theorem toNat_sub (a b : Limbs w n) :
 
 end Bingcd.Limbs
 
-/-! ## Equality
-
-The equality test visits every limb whatever the inputs are: it or-s together the limbwise
-xor. -/
-
-namespace Bingcd.Limbs
-
-variable {w n : ℕ}
-
-/-! ### Equality -/
-
-/-- The bitwise or of the limbwise xor of `a` and `b`; zero exactly when `a = b`. -/
-def xorOrAll : {n : ℕ} → Limbs w n → Limbs w n → Word w
-  | 0, _, _ => 0#w
-  | _ + 1, a, b => xorOrAll a.pop b.pop ||| (a.back ^^^ b.back)
-
-theorem xorOrAll_eq_zero_iff (a b : Limbs w n) : xorOrAll a b = 0#w ↔ a = b := by
-  induction n with
-  | zero => simp [xorOrAll, Vector.eq_empty (xs := a), Vector.eq_empty (xs := b)]
-  | succ n ih =>
-    rw [xorOrAll, BitVec.or_eq_zero_iff, ih, BitVec.xor_eq_zero_iff]
-    conv_rhs => rw [← Vector.push_pop_back a, ← Vector.push_pop_back b, Vector.push_eq_push]
-    exact and_comm
-
-/-- `a = b`. -/
-def eq (a b : Limbs w n) : Bool := xorOrAll a b == 0#w
-
-theorem eq_eq (a b : Limbs w n) : eq a b = decide (a = b) := by
-  rw [eq, beq_eq_decide, decide_eq_decide]
-  exact xorOrAll_eq_zero_iff a b
-
-end Bingcd.Limbs
-
 /-! ## Selection
 
 Branch-free selection between two multi-limb integers, limb by limb through `Word.select`. -/
@@ -319,10 +244,6 @@ def select (c : Bool) (a b : Limbs w n) : Limbs w n := Vector.zipWith (Word.sele
 @[simp] theorem select_false (a b : Limbs w n) : select false a b = b := by
   ext i hi : 1
   simp [select]
-
-theorem toNat_select (c : Bool) (a b : Limbs w n) :
-    toNat (select c a b) = bif c then a.toNat else b.toNat := by
-  cases c <;> simp
 
 end Bingcd.Limbs
 
@@ -381,39 +302,6 @@ theorem toNat_div1 (a : Limbs w n) {d : Word w} (hd : 0 < d.toNat) :
 
 end Bingcd.Limbs
 
-/-! ## A row of a product
-
-`mulAddRow` adds to an accumulator the product of a multi-limb integer by one word, with the
-one-word primitive `Word.mulAdd2`. -/
-
-namespace Bingcd.Limbs
-
-variable {w n m : ℕ}
-
-/-! ### One row -/
-
-/-- Multiply-accumulate row: `acc + a * b + c`, as `n` limbs and a carry word. -/
-def mulAddRow : {n : ℕ} → Limbs w n → Limbs w n → Word w → Word w → Limbs w n × Word w
-  | 0, _, _, _, c => (#v[], c)
-  | _ + 1, acc, a, b, c =>
-    let r := mulAddRow acc.pop a.pop b c
-    let s := Word.mulAdd2 a.back b acc.back r.2
-    (r.1.push s.1, s.2)
-
-theorem mulAddRow_spec (acc a : Limbs w n) (b c : Word w) :
-    toNat (mulAddRow acc a b c).1 + 2 ^ (w * n) * (mulAddRow acc a b c).2.toNat =
-      acc.toNat + a.toNat * b.toNat + c.toNat := by
-  induction n with
-  | zero => simp [mulAddRow, toNat_zero]
-  | succ n ih =>
-    have h₁ := ih acc.pop a.pop
-    have h₂ := Word.mulAdd2_spec a.back b acc.back (mulAddRow acc.pop a.pop b c).2
-    simp only [mulAddRow, toNat_push, Nat.add_one_sub_one]
-    rw [toNat_eq_pop_add acc, toNat_eq_pop_add a, Nat.mul_succ, pow_add]
-    linear_combination h₁ + 2 ^ (w * n) * h₂
-
-end Bingcd.Limbs
-
 /-! ## Right shifts
 
 A right shift by `k < w` bits is a division by the word `2 ^ k`, an instance of the
@@ -447,8 +335,6 @@ namespace Bingcd.Limbs
 
 variable {w n : ℕ}
 
-/-! ### Conditional subtraction -/
-
 /-- Subtract `p` from `a + 2 ^ (w * n) * c` unless that would be negative. -/
 def condSub (a : Limbs w n) (c : Bool) (p : Limbs w n) : Limbs w n :=
   let r := subb a p false
@@ -472,22 +358,5 @@ theorem toNat_condSub (a : Limbs w n) (c : Bool) (p : Limbs w n)
   · simp only [Bool.toNat_true, Nat.mul_one] at h ⊢
     simp only [condSub, Bool.not_true, Bool.and_false, select_false, hr]
     rw [toNat_sub_of_lt (by omega), Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]
-
-end Bingcd.Limbs
-
-/-! ## The constant of a Montgomery reduction
-
-The negated inverse modulo `2 ^ w` of the lowest limb of an odd modulus. -/
-
-namespace Bingcd.Limbs
-
-variable {w n k : ℕ}
-
-/-! ### Interleaved (CIOS) Montgomery multiplication -/
-
-/-- The Montgomery constant can be computed from the low limb of an odd modulus. -/
-theorem negInv_head_spec {p : Limbs w (n + 1)} (hp : p[0].toNat % 2 = 1) :
-    (p.toNat * (Word.negInv p[0]).toNat + 1) % 2 ^ w = 0 := by
-  exact Eq.trans (((toNat_modEq_head p).mul_right _).add_right 1) (Word.negInv_spec hp)
 
 end Bingcd.Limbs

@@ -348,7 +348,7 @@ impl FieldElement51 {
     /// zero is zero. The limbs are first weakly reduced, which is the bound that the verified
     /// `bingcd::invert` asks for.
     pub fn invert_bingcd(&self) -> FieldElement51 {
-        FieldElement51(super::bingcd::invert(&FieldElement51::reduce(self.0).0))
+        super::bingcd::invert(&FieldElement51::reduce(self.0).0)
     }
 
     /// The quotient of this field element by `rhs`, by one run of Pornin's optimized binary
@@ -356,10 +356,10 @@ impl FieldElement51 {
     /// are first weakly reduced, which is the bound that the verified `bingcd::divide` asks
     /// for.
     pub fn div_bingcd(&self, rhs: &FieldElement51) -> FieldElement51 {
-        FieldElement51(super::bingcd::divide(
-            &FieldElement51::reduce(self.0).0,
+        super::bingcd::divide(
+            &FieldElement51::reduce(self.0),
             &FieldElement51::reduce(rhs.0).0,
-        ))
+        )
     }
 
     /// Given 64-bit input limbs, reduce to enforce the bound 2^(51 + epsilon) for all

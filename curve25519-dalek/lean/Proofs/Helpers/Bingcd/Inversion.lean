@@ -5,86 +5,25 @@ public import Mathlib.Init
 public import Mathlib.Algebra.Group.Basic
 public import Mathlib.Data.ZMod.Basic
 
-/-! # Pornin's optimized binary gcd: modular inversion
+/-! # Pornin's optimized binary gcd: the rounds
 
-Modular inversion modulo an odd `m` by Pornin's algorithm (*Optimized Binary GCD for Modular
-Inversion*, 2020), following Listing 2 of Mahboubi, Melquiond, Strub and Vallejos Parada,
-*Functional Correctness of an Optimized Modular Inversion Algorithm* (ITP 2026).
+The rounds of modular inversion modulo an odd `m` by Pornin's algorithm (*Optimized Binary GCD
+for Modular Inversion*, 2020), following Listing 2 of Mahboubi, Melquiond, Strub and Vallejos
+Parada, *Functional Correctness of an Optimized Modular Inversion Algorithm* (ITP 2026).
 
 Each round approximates `a` and `b` by their top `K + 2` and bottom `K` bits, runs `K` steps
 of the extended binary gcd on the approximations to build a transition matrix, then applies
 the matrix to `a`, `b` and to the cofactors `u`, `v`. The matrix is `2 ^ K` times the true
-one, so the cofactors pick up a factor `2 ^ K` per round, removed at the end.
-`⌈(2 * ℓ(m) - 1) / K⌉` rounds suffice.
+one, so the cofactors pick up a factor `2 ^ K` per round.
+
+This file defines one round over the integers (`round`) and proves the invariant that the
+rounds maintain (`RInv`, `rinv_iterate`): after `i` rounds, `u * y ≡ 2 ^ (K * i) * a` and
+`v * y ≡ 2 ^ (K * i) * b` modulo `m`, and `K * i` bits have been removed from the operands.
+How many steps are run is the matter of `Schedule.lean`.
 
 The parameter `K` is the number of inner steps; it is `k - 1` in the papers. -/
 
 @[expose] public section
-
-/-! ## Binary exponentiation
-
-Left-to-right binary exponentiation, for an arbitrary multiplication: the final correction
-of the algorithm is a power of `(m + 1) / 2`, the inverse of `2` modulo `m`.
-
-`powBin mul one x e` is defined by recursion on the exponent: the result for `e` is the
-square of the result for `e / 2`, multiplied by `x` when `e` is odd. -/
-
-namespace Bingcd
-
-variable {α M : Type*}
-
-/-- Left-to-right binary exponentiation: `x ^ e`, with one squaring per bit of `e` and one
-multiplication per nonzero bit. -/
-def powBin (mul : α → α → α) (one x : α) (e : ℕ) : α :=
-  if e = 0 then one
-  else
-    let h := powBin mul one x (e / 2)
-    let s := mul h h
-    if e % 2 = 1 then mul s x else s
-termination_by e
-decreasing_by omega
-
-/-- Binary exponentiation through a representation. Let `φ` map `α` to a monoid, and let `P`
-be an invariant preserved by `mul`, on which `φ` is multiplicative. Then binary
-exponentiation in `α` computes the power in the monoid, and preserves the invariant. -/
-theorem powBin_spec [Monoid M] {mul : α → α → α} {one x : α} (φ : α → M) (P : α → Prop)
-    (hmul : ∀ a b, P a → P b → P (mul a b) ∧ φ (mul a b) = φ a * φ b) (hone : P one)
-    (hφone : φ one = 1) (hx : P x) (e : ℕ) :
-    P (powBin mul one x e) ∧ φ (powBin mul one x e) = φ x ^ e := by
-  induction e using Nat.strongRecOn with
-  | ind e ih =>
-    rw [powBin]
-    split
-    · next h => exact ⟨hone, by rw [hφone, h, pow_zero]⟩
-    · next h =>
-      obtain ⟨hP, hφ⟩ := ih (e / 2) (by omega)
-      obtain ⟨hP₂, hφ₂⟩ := hmul _ _ hP hP
-      have he := Nat.div_add_mod e 2
-      simp only
-      split
-      · next hodd =>
-        obtain ⟨hP₃, hφ₃⟩ := hmul _ _ hP₂ hx
-        refine ⟨hP₃, ?_⟩
-        rw [hφ₃, hφ₂, hφ, ← pow_add, ← pow_succ]
-        congr 1
-        omega
-      · next heven =>
-        refine ⟨hP₂, ?_⟩
-        rw [hφ₂, hφ, ← pow_add]
-        congr 1
-        omega
-
-/-- `b ^ e` modulo `m`, by binary exponentiation with a reduction after every product. -/
-def powMod (m b e : ℕ) : ℕ := powBin (fun x y => x * y % m) (1 % m) (b % m) e
-
-theorem powMod_modEq (m b e : ℕ) : powMod m b e ≡ b ^ e [MOD m] := by
-  have h := (powBin_spec (mul := fun x y => x * y % m) (one := 1 % m) (x := b % m)
-    (fun a : ℕ => (a : ZMod m)) (fun _ => True)
-    (fun a b _ _ => ⟨trivial, by simp⟩) trivial (by simp) trivial e).2
-  rw [← ZMod.natCast_eq_natCast_iff]
-  simpa [powMod] using h
-
-end Bingcd
 
 namespace Bingcd.Pornin
 
@@ -379,105 +318,5 @@ theorem rinv_iterate {y m K : ℕ} (hK : 1 ≤ K) (hm1 : 1 < m) (hm : m % 2 = 1)
     refine ⟨hm, rfl, hm1, (by omega : 0 < m), by simp, ?_, Or.inr (by simp)⟩
     simpa using (Int.modEq_zero_iff_dvd.mpr (dvd_refl (m : ℤ))).symm
   | succ i ih => rw [Function.iterate_succ_apply']; exact rinv_round hK (by omega) ih
-
-/-! ### Modular inversion -/
-
-/-- The number of rounds: `⌈(2 * ℓ(m) - 1) / K⌉`. -/
-def rounds (m K : ℕ) : ℕ := (2 * m.size - 1 + (K - 1)) / K
-
-theorem le_mul_rounds {K : ℕ} (hK : 1 ≤ K) (m : ℕ) : 2 * m.size - 1 ≤ K * rounds m K := by
-  have h1 := Nat.div_add_mod (2 * m.size - 1 + (K - 1)) K
-  have h2 := Nat.mod_lt (2 * m.size - 1 + (K - 1)) (by omega : 0 < K)
-  unfold rounds
-  generalize K * ((2 * m.size - 1 + (K - 1)) / K) = X at *
-  omega
-
-/-- After all rounds, `a = 0` and `b` is the gcd. -/
-theorem round_iterate {y m K : ℕ} (hK : 1 ≤ K) (hm1 : 1 < m) (hm : m % 2 = 1) (hy : y < m) :
-    ((round m K)^[rounds m K] (y, 1, m, 0)).1 = 0 ∧
-      ((round m K)^[rounds m K] (y, 1, m, 0)).2.2.1 = Nat.gcd y m := by
-  obtain ⟨hb, hg, -, -, -, -, hpot⟩ := rinv_iterate (y := y) hK hm1 hm (rounds m K)
-  have hr := le_mul_rounds hK m
-  generalize (round m K)^[rounds m K] (y, 1, m, 0) = s at *
-  obtain ⟨a, u, b, v⟩ := s
-  dsimp only at hb hg hpot ⊢
-  have ha : a = 0 := by
-    rcases hpot with h | h
-    · exact h
-    · have h1 := Nat.size_le_size hy.le
-      have h2 := Nat.size_pos.mpr (by omega : 0 < b)
-      have h3 := Nat.size_pos.mpr (by omega : 0 < m)
-      exact Nat.size_eq_zero.mp (by omega)
-  subst ha
-  exact ⟨rfl, by simpa using hg⟩
-
-/-- The inverse of `y` modulo an odd `m` by Pornin's algorithm with `K` inner steps per
-round. It is `0` when `y` is not invertible. -/
-def porninInv (y m K : ℕ) : ℕ :=
-  let s := (round m K)^[rounds m K] (y, 1, m, 0)
-  if s.2.2.1 = 1 then
-    s.2.2.2 * powMod m ((m + 1) / 2) (K * rounds m K) % m
-  else 0
-
-/-- The final correction: modulo an odd `m`, if `v * y ≡ 2 ^ N` then `v * ((m + 1) / 2) ^ N`
-is an inverse of `y`. -/
-theorem mul_half_pow_modEq {m v y N : ℕ} (hodd : m % 2 = 1) (h : v * y ≡ 2 ^ N [MOD m]) :
-    y * (v * powMod m ((m + 1) / 2) N % m) ≡ 1 [MOD m] := by
-  have h2 : 2 * ((m + 1) / 2) = m + 1 := by omega
-  calc y * (v * powMod m ((m + 1) / 2) N % m)
-      ≡ y * (v * powMod m ((m + 1) / 2) N) [MOD m] := (Nat.mod_modEq _ _).mul_left _
-    _ ≡ y * (v * ((m + 1) / 2) ^ N) [MOD m] := ((powMod_modEq _ _ _).mul_left _).mul_left _
-    _ = v * y * ((m + 1) / 2) ^ N := by ring
-    _ ≡ 2 ^ N * ((m + 1) / 2) ^ N [MOD m] := h.mul_right _
-    _ = (m + 1) ^ N := by rw [← mul_pow, h2]
-    _ ≡ 1 [MOD m] := by
-        have h1 : m + 1 ≡ 1 [MOD m] := by simp [Nat.ModEq]
-        simpa using h1.pow N
-
-/-- **Correctness of Pornin's modular inversion.** For `K ≥ 1`, `m > 1` odd and `y < m`
-coprime to `m`, `porninInv y m K` is the inverse of `y` modulo `m`, in `[0, m)`. -/
-theorem porninInv_spec {y m K : ℕ} (hK : 1 ≤ K) (hm : 1 < m) (hodd : m % 2 = 1) (hy : y < m)
-    (hc : Nat.Coprime y m) : porninInv y m K < m ∧ y * porninInv y m K % m = 1 := by
-  obtain ⟨-, hb⟩ := round_iterate hK hm hodd hy
-  obtain ⟨-, -, -, -, -, hbv, -⟩ := rinv_iterate (y := y) hK hm hodd (rounds m K)
-  rw [hc] at hb
-  simp only [porninInv, hb, ite_true]
-  rw [hb] at hbv
-  generalize ((round m K)^[rounds m K] (y, 1, m, 0)).2.2.2 = v at *
-  generalize K * rounds m K = N at *
-  refine ⟨Nat.mod_lt _ (by omega), ?_⟩
-  have hbv' : v * y ≡ 2 ^ N [MOD m] := Int.natCast_modEq_iff.mp (by simpa using hbv)
-  rw [mul_half_pow_modEq hodd hbv', Nat.mod_eq_of_lt hm]
-
-/-- When `y` is not invertible modulo `m`, the result is `0`. -/
-theorem porninInv_eq_zero {y m K : ℕ} (hK : 1 ≤ K) (hm : 1 < m) (hodd : m % 2 = 1) (hy : y < m)
-    (hc : Nat.gcd y m ≠ 1) : porninInv y m K = 0 := by
-  obtain ⟨-, hb⟩ := round_iterate hK hm hodd hy
-  simp [porninInv, hb, hc]
-
-theorem porninInv_lt {y m K : ℕ} (hK : 1 ≤ K) (hm : 1 < m) (hodd : m % 2 = 1) (hy : y < m) :
-    porninInv y m K < m := by
-  by_cases hc : Nat.gcd y m = 1
-  · exact (porninInv_spec hK hm hodd hy hc).1
-  · rw [porninInv_eq_zero hK hm hodd hy hc]
-    omega
-
-/-- Modulo an odd prime `p`, `porninInv` computes the inverse in `ZMod p`, with the usual
-convention that the inverse of `0` is `0`. -/
-theorem natCast_porninInv {y p K : ℕ} [hp : Fact p.Prime] (hK : 1 ≤ K) (hodd : p % 2 = 1)
-    (hy : y < p) : ((porninInv y p K : ℕ) : ZMod p) = (y : ZMod p)⁻¹ := by
-  have hp1 := hp.out.one_lt
-  by_cases hy0 : y = 0
-  · subst hy0
-    rw [porninInv_eq_zero hK hp1 hodd hy (by rw [Nat.gcd_zero_left]; omega)]
-    simp
-  · have hc : Nat.Coprime y p :=
-      ((Nat.Prime.coprime_iff_not_dvd hp.out).mpr fun h =>
-        absurd (Nat.le_of_dvd (Nat.pos_of_ne_zero hy0) h) (by omega)).symm
-    have h := (porninInv_spec hK hp1 hodd hy hc).2
-    have hmul : (y : ZMod p) * ((porninInv y p K : ℕ) : ZMod p) = 1 := by
-      rw [← Nat.cast_mul, ← Nat.cast_one, ZMod.natCast_eq_natCast_iff', h,
-        Nat.mod_eq_of_lt hp1]
-    exact eq_inv_of_mul_eq_one_right hmul
 
 end Bingcd.Pornin

@@ -1,54 +1,47 @@
 module
 public import Curve25519Dalek.Funs
 public import Proofs.Helpers.Bingcd32
-import Proofs.Backend.Serial.U32.Bingcd.Freeze
-import Proofs.Backend.Serial.U32.Bingcd.Ninv
-import Proofs.Backend.Serial.U32.Bingcd.P
-import Proofs.Backend.Serial.U32.Bingcd.PorninDiv
-import Proofs.Backend.Serial.U32.Bingcd.Rounds
-import Proofs.Backend.Serial.U32.Bingcd.Unpack
+import Proofs.Backend.Serial.U32.Bingcd.Scale
+import Proofs.Backend.Serial.U32.Bingcd.ScaledDiv
+import Proofs.Backend.Serial.U32.Field.Mul
+import Proofs.Helpers.ToField2625
 public section
 
 open Aeneas Aeneas.Std Result
 open Bingcd
+open Curve25519Dalek.SharedAFieldElement2625.Insts
+  (CoreOpsArithMulSharedBFieldElement2625FieldElement2625.mul_spec)
 
 namespace Curve25519Dalek.backend.serial.u32.bingcd
 
-/-- **The translated field division**: canonical forms, Pornin's division on eight 32-bit limbs
-with 32 rounds and 28 last steps, and ten limbs again. On limbs within the bounds of the weak
-reduction this is `Limbs.Curve25519.U32.div` (`divide_eq_div`). -/
+/-- **The translated field division** is the run of `scaled_div` from the cofactor
+`x * 2 ^ -508`. -/
 @[step]
-theorem divide_spec (x z : Array U32 10#usize) :
-    divide x z ⦃ r => L10 r = Limbs.Curve25519.U32.unpack
-      (Pornin.porninDivSL 15 32 28 Limbs.Curve25519.U32.P Limbs.Curve25519.U32.ninv
-        (Limbs.Curve25519.U32.freeze (L10 x)) (Limbs.Curve25519.U32.freeze (L10 z))) ⦄ := by
+theorem divide_spec (x : field.FieldElement2625) (z : Array U32 10#usize)
+    (hx : ∀ i : ℕ, i < 10 → x[i]!.val < 3 * 2 ^ 26) :
+    divide x z ⦃ (r : field.FieldElement2625) =>
+      r.toField = Pornin.porninDivR 15 32 28 Limbs.Curve25519.U32.P (x.toField * SCALE.toField)
+        (Limbs.Curve25519.U32.freeze (L10 z)) ∧ r.LimbsLt 26 ⦄ := by
   unfold divide
-  step*
-  simp only [r_post, a2_post, a1_post, a_post, L8_P, NINV_bv, ROUNDS_val, U32.bv]
+  have hS : ∀ i : ℕ, i < 10 → SCALE[i]!.val < 3 * 2 ^ 26 :=
+    fun j hj => lt_trans (SCALE_limbsLt j hj) (by norm_num)
+  step with CoreOpsArithMulSharedBFieldElement2625FieldElement2625.mul_spec x SCALE hx hS
+    as ⟨fe, hfe, hfeb⟩
+  step with scaled_div_spec fe z hfeb as ⟨r, hr, hrb⟩
+  exact ⟨by rw [hr, field.FieldElement2625.toField_mul_of_mod hfe], hrb⟩
 
-/-- On tight limbs, the translated field division is `Limbs.Curve25519.U32.div`. -/
-theorem divide_eq_div (x z : Array U32 10#usize) (hx : Limbs.Curve25519.U32.Tight (L10 x))
-    (hz : Limbs.Curve25519.U32.Tight (L10 z)) :
-    divide x z ⦃ r => L10 r = Limbs.Curve25519.U32.div (L10 x) (L10 z) ⦄ := by
-  refine WP.spec_mono (divide_spec x z) fun r hr => ?_
-  rw [hr, Limbs.Curve25519.U32.div_eq_porninDivSL hx hz]
-
-/-- **Correctness of `bingcd::divide`.** On limbs within the bounds of the weak reduction
-(below `2 ^ 26` at even positions and below `2 ^ 25 + 2 ^ 18` at odd ones), the function never
-panics, its result has limbs below `2 ^ 26`, and it represents the quotient in the field of
-integers modulo `p` of the elements its arguments represent (with a quotient by zero being
-zero). -/
+/-- **Correctness of `bingcd::divide`.** For `x` with limbs below `3 * 2 ^ 26` and `z` with limbs
+within the bounds of the weak reduction (below `2 ^ 26` at even positions and below
+`2 ^ 25 + 2 ^ 18` at odd ones), the function never panics, its result has limbs below `2 ^ 26`,
+and it represents the quotient in the field of integers modulo `p` of the elements its
+arguments represent (with a quotient by zero being zero). -/
 theorem divide_correct (x z : field.FieldElement2625)
-    (hx : ∀ i : ℕ, i < 10 → x[i]!.val < field.FieldElement2625.limbRadix i + i % 2 * 2 ^ 18)
+    (hx : ∀ i : ℕ, i < 10 → x[i]!.val < 3 * 2 ^ 26)
     (hz : ∀ i : ℕ, i < 10 → z[i]!.val < field.FieldElement2625.limbRadix i + i % 2 * 2 ^ 18) :
     divide x z ⦃ (r : field.FieldElement2625) =>
       r.toField = x.toField / z.toField ∧ r.LimbsLt 26 ⦄ := by
-  refine WP.spec_mono (divide_eq_div x z (tight_L10 hx) (tight_L10 hz)) fun r hr => ?_
-  obtain ⟨hb, hv⟩ := Limbs.Curve25519.U32.div_spec (tight_L10 hx) (tight_L10 hz)
-  rw [← hr] at hb hv
-  rw [value_L10, value_L10, value_L10] at hv
-  rw [field.FieldElement2625.toField_def r, field.FieldElement2625.toField_def x,
-    field.FieldElement2625.toField_def z]
-  exact ⟨hv, limbsLt_of_reduced hb⟩
+  refine WP.spec_mono (divide_spec x z hx) fun r ⟨hr, hb⟩ => ⟨?_, hb⟩
+  rw [hr, Limbs.Curve25519.U32.porninDivR_freeze (tight_L10 hz), mul_assoc, SCALE_toField,
+    mul_one, value_L10, ← field.FieldElement2625.toField_def]
 
 end Curve25519Dalek.backend.serial.u32.bingcd

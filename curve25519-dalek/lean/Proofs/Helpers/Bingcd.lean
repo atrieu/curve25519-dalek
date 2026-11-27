@@ -14,10 +14,10 @@ bitwidth and any number of limbs, are defined and proved correct in the files of
 translated function computes one of them, at 64 bits and four limbs.
 
 This file has the maps through which the arrays and the structures of the Rust code are read:
-`L4` and `L5` for four and five limbs, with values `Array.asNat 64` and `FieldElement51.asNat`,
-`Inner.toP` and `Tail.toW` for the states of the inner loop and of the last steps, and
-`State.toL` for the state of the algorithm. It also has the lemmas on machine integers that
-several of these specs use. -/
+`L4` for the four limbs of an operand, `L5` for the five limbs of a field element, whose value
+in radix `2 ^ 51` is `FieldElement51.asNat`, `Inner.toP` and `Tail.toW` for the states of the
+inner loop and of the last steps, and `State.toR` for the state of the algorithm. It also has
+the lemmas on machine integers that several of these specs use. -/
 
 @[expose] public section
 
@@ -41,25 +41,7 @@ theorem L4_make (r0 r1 r2 r3 : U64) (h) :
 @[simp]
 theorem L4_repeat_zero : L4 (Array.repeat 4#usize 0#u64) = #v[0, 0, 0, 0] := rfl
 
-theorem L4_getElem_zero (r : Array U64 4#usize) :
-    (L4 r)[0] = (r.val[0]'(by scalar_tac)).bv := rfl
-
-/-- The limbs of `L4 x` are those of `x`. -/
-theorem toNat_L4_getElem (x : Array U64 4#usize) (i : ℕ) (hi : i < 4) :
-    (L4 x)[i].toNat = x[i]!.val := by
-  rw [Array.getElem!_Nat_eq, getElem!_pos x.val i (by scalar_tac)]
-  interval_cases i <;> rfl
-
-/-- The value of `L4 x` is the value of `x` in radix `2 ^ 64`. -/
-theorem toNat_L4 (x : Array U64 4#usize) : (L4 x).toNat = x.asNat 64 := by
-  rw [Limbs.toNat, Limbs.Curve25519.eval_four, Array.asNat_four,
-    toNat_L4_getElem x 0 (by norm_num), toNat_L4_getElem x 1 (by norm_num),
-    toNat_L4_getElem x 2 (by norm_num), toNat_L4_getElem x 3 (by norm_num)]
-  norm_num
-
 theorem ofNat_four_zero : (Limbs.ofNat 4 0 : Limbs 64 4) = #v[0, 0, 0, 0] := by decide
-
-theorem ofNat_four_one : (Limbs.ofNat 4 1 : Limbs 64 4) = #v[1, 0, 0, 0] := by decide
 
 /-! ### Five limbs -/
 
@@ -68,10 +50,6 @@ def L5 (x : Array U64 5#usize) : Limbs 64 5 :=
   #v[(x.val[0]'(by scalar_tac)).bv, (x.val[1]'(by scalar_tac)).bv,
     (x.val[2]'(by scalar_tac)).bv, (x.val[3]'(by scalar_tac)).bv,
     (x.val[4]'(by scalar_tac)).bv]
-
-@[simp]
-theorem L5_make (r0 r1 r2 r3 r4 : U64) (h) :
-    L5 (Array.make 5#usize [r0, r1, r2, r3, r4] h) = #v[r0.bv, r1.bv, r2.bv, r3.bv, r4.bv] := rfl
 
 /-- The limbs of `L5 x` are those of `x`. -/
 theorem toNat_L5_getElem (x : FieldElement51) (i : ℕ) (hi : i < 5) :
@@ -94,14 +72,6 @@ theorem tight_L5 {x : FieldElement51} (h : ∀ i : ℕ, i < 5 → x[i]!.val ≤ 
   rw [toNat_L5_getElem x i hi]
   exact h i hi
 
-/-- Limbs bounded by `2 ^ 51 - 1` are below `2 ^ 51`. -/
-theorem limbsLt_of_bounded {x : FieldElement51} (h : Limbs.Bounded (L5 x) (2 ^ 51 - 1)) :
-    x.LimbsLt 51 := by
-  intro i hi
-  have := h i hi
-  rw [toNat_L5_getElem x i hi] at this
-  omega
-
 /-! ### States -/
 
 /-- The state of the inner loop, as a state with packed rows. -/
@@ -112,9 +82,11 @@ def Inner.toP (s : Inner) : Pornin.InnerP 64 :=
 def Tail.toW (s : Tail) : Pornin.InnerW 64 :=
   ⟨s.a.bv, s.b.bv, s.f0.bv, s.g0.bv, s.f1.bv, s.g1.bv⟩
 
-/-- The state of the algorithm, as the quadruple `(a, u, b, v)`. -/
-def State.toL (s : State) : Limbs 64 4 × Limbs 64 4 × Limbs 64 4 × Limbs 64 4 :=
-  (L4 s.a, L4 s.u, L4 s.b, L4 s.v)
+/-- The state of the algorithm, as the quadruple `(a, u, b, v)`: the operands on limbs, the
+cofactors in the field. -/
+noncomputable def State.toR (s : State) :
+    Limbs 64 4 × ZMod curve25519.p × Limbs 64 4 × ZMod curve25519.p :=
+  (L4 s.a, s.u.toField, L4 s.b, s.v.toField)
 
 /-! ### Machine integers -/
 
@@ -124,15 +96,6 @@ theorem U128.eq_zero_iff_val (x : U128) : x = 0#u128 ↔ x.val = 0 := by
     rfl
   · intro h
     exact UScalar.eq_of_val_eq h
-
-theorem U64.eq_iff_bv (x y : U64) : x = y ↔ x.bv = y.bv := by
-  constructor
-  · rintro rfl
-    rfl
-  · intro h
-    cases x
-    cases y
-    simp_all
 
 theorem U64.eq_zero_iff_val (x : U64) : x = 0#u64 ↔ x.val = 0 :=
   ⟨fun h => by rw [h]; rfl, fun h => UScalar.eq_of_val_eq h⟩

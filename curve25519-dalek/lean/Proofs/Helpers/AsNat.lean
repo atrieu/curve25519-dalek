@@ -8,8 +8,8 @@ public section
 /-! # Lemmas about `Array.asNat`
 
 The value of an array as little-endian digits in radix `2 ^ bits`: as a sum (`asNat_eq_sum`),
-unfolded for four, five, eight and nine digits, its bounds, its digits, its injectivity, and how
-it changes when a digit is set. -/
+unfolded for five and nine digits, its bounds, its digits, its injectivity, and how it changes
+when a digit is set. -/
 
 open Aeneas Aeneas.Std
 
@@ -150,33 +150,6 @@ theorem asNat_eq_sum {ty : UScalarTy} {n : Usize} (bits : ℕ) (a : Array (UScal
     rw [List.length_cons, Finset.sum_range_succ']
     simp [Nat.ofDigits, ih, pow_succ, pow_mul, Finset.mul_sum]
     ring_nf
-
-/-- `asNat` of four digits, unfolded. -/
-theorem asNat_four {ty : UScalarTy} (bits : ℕ) (a : Array (UScalar ty) 4#usize) :
-    a.asNat bits = a[0]!.val + 2 ^ bits * a[1]!.val + 2 ^ (2 * bits) * a[2]!.val
-      + 2 ^ (3 * bits) * a[3]!.val := by
-  have h : a.val.length = 4 := by simp
-  simp only [Array.asNat_def, Array.getElem!_Nat_eq]
-  generalize a.val = l at h ⊢
-  match l, h with
-  | [x0, x1, x2, x3], _ =>
-    simp only [Nat.ofDigits, List.map_cons, List.map_nil, Nat.cast_id, List.getElem!_cons_zero,
-      List.getElem!_cons_succ]
-    ring
-
-/-- `asNat` of eight digits, unfolded. -/
-theorem asNat_eight {ty : UScalarTy} (bits : ℕ) (a : Array (UScalar ty) 8#usize) :
-    a.asNat bits = a[0]!.val + 2 ^ bits * a[1]!.val + 2 ^ (2 * bits) * a[2]!.val
-      + 2 ^ (3 * bits) * a[3]!.val + 2 ^ (4 * bits) * a[4]!.val + 2 ^ (5 * bits) * a[5]!.val
-      + 2 ^ (6 * bits) * a[6]!.val + 2 ^ (7 * bits) * a[7]!.val := by
-  have h : a.val.length = 8 := by simp
-  simp only [Array.asNat_def, Array.getElem!_Nat_eq]
-  generalize a.val = l at h ⊢
-  match l, h with
-  | [x0, x1, x2, x3, x4, x5, x6, x7], _ =>
-    simp only [Nat.ofDigits, List.map_cons, List.map_nil, Nat.cast_id, List.getElem!_cons_zero,
-      List.getElem!_cons_succ]
-    ring
 
 /-- `asNat` of five digits, unfolded. -/
 theorem asNat_five {ty : UScalarTy} (bits : ℕ) (a : Array (UScalar ty) 5#usize) :

@@ -4,10 +4,11 @@ public import Proofs.Helpers.Bingcd.Field
 /-! # The field modulo `p` on 32-bit limbs, and inversion in it
 
 `backend::serial::u32::bingcd` takes a field element on ten limbs of 26 and 25 bits to its
-canonical form on eight 32-bit limbs, runs Pornin's algorithm with 15 inner steps per round, and
-returns to ten limbs. This file has these conversions and the two functions on vectors of words,
-with their correctness: the result represents the inverse, respectively the quotient, modulo
-`p = 2 ^ 255 - 19`. It is `Proofs/Helpers/Bingcd/Field.lean` for 32-bit words. -/
+canonical form on eight 32-bit limbs, and runs Pornin's algorithm on it and the modulus, with 15
+inner steps per round and the cofactors kept as field elements. This file has the conversion on
+vectors of words and the correctness of the run: from the cofactor `u`, it ends on
+`u * 2 ^ 508 / z` modulo `p = 2 ^ 255 - 19`. It is `Proofs/Helpers/Bingcd/Field.lean` for 32-bit
+words. -/
 
 @[expose] public section
 
@@ -163,7 +164,7 @@ theorem carry_spec {a : Limbs 32 10} (ha : Tight a) :
       (first | rw [toNat_and_mask26] | rw [toNat_and_mask25]) <;> omega
   · simpa only [carry] using hc
 
-/-! ### Packing and unpacking
+/-! ### Packing
 
 Conversions between the two representations of a field element: ten limbs of 26 and 25 bits,
 used by the arithmetic, and eight saturated 32-bit limbs, used for the canonical value and by
@@ -192,47 +193,6 @@ theorem pack_spec {r : Limbs 32 10} {c : Word 32} (hr : Reduced r) (hc : c.toNat
     List.getElem_cons_succ, BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ushiftRight,
     Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow]
   omega
-
-/-- Unpack eight 32-bit limbs into ten limbs of 26 and 25 bits. The top bit of the input is
-dropped. -/
-def unpack (y : Limbs 32 8) : Limbs 32 10 :=
-  #v[y[0] &&& 0x3FFFFFF#32,
-    ((y[0] >>> 26) + (y[1] <<< 6)) &&& 0x1FFFFFF#32,
-    ((y[1] >>> 19) + (y[2] <<< 13)) &&& 0x3FFFFFF#32,
-    ((y[2] >>> 13) + (y[3] <<< 19)) &&& 0x1FFFFFF#32,
-    y[3] >>> 6,
-    y[4] &&& 0x1FFFFFF#32,
-    ((y[4] >>> 25) + (y[5] <<< 7)) &&& 0x3FFFFFF#32,
-    ((y[5] >>> 19) + (y[6] <<< 13)) &&& 0x1FFFFFF#32,
-    ((y[6] >>> 12) + (y[7] <<< 20)) &&& 0x3FFFFFF#32,
-    (y[7] >>> 6) &&& 0x1FFFFFF#32]
-
-/-- `unpack` reads the 255 low bits of its input, into reduced limbs. -/
-theorem unpack_value (y : Limbs 32 8) :
-    value (unpack y) = y.toNat % 2 ^ 255 ∧ Reduced (unpack y) := by
-  have y0 := y[0].isLt
-  have y1 := y[1].isLt
-  have y2 := y[2].isLt
-  have y3 := y[3].isLt
-  have y4 := y[4].isLt
-  have y5 := y[5].isLt
-  have y6 := y[6].isLt
-  have y7 := y[7].isLt
-  rw [toNat, eval_eight]
-  constructor
-  · simp only [value, unpack, Vector.getElem_mk, List.getElem_toArray, List.getElem_cons_zero,
-      List.getElem_cons_succ, toNat_and_mask26, toNat_and_mask25, BitVec.toNat_add,
-      BitVec.toNat_shiftLeft, BitVec.toNat_ushiftRight, Nat.shiftLeft_eq,
-      Nat.shiftRight_eq_div_pow]
-    omega
-  · refine reduced_ten ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ <;>
-      (first | rw [toNat_and_mask26] | rw [toNat_and_mask25] |
-        rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]) <;> omega
-
-theorem unpack_spec {y : Limbs 32 8} (hy : y.toNat < 2 ^ 255) :
-    value (unpack y) = y.toNat ∧ Reduced (unpack y) := by
-  obtain ⟨h₁, h₂⟩ := unpack_value y
-  exact ⟨by rw [h₁, Nat.mod_eq_of_lt hy], h₂⟩
 
 /-! ### The canonical representative -/
 
@@ -277,27 +237,13 @@ end Bingcd.Limbs.Curve25519.U32
 
 /-! ## Inversion and division
 
-The inverse of a field element on ten limbs, by Pornin's binary gcd on eight saturated 32-bit
-limbs, with 15 inner steps per round: the element is brought to canonical form, inverted, and
-unpacked. The inverse of `0` is `0`. -/
+`backend/serial/u32/bingcd.rs` brings a field element on ten limbs to canonical form on eight
+saturated 32-bit limbs, and runs Pornin's binary gcd on it and the modulus, with 15 inner steps
+per round and the cofactors in the field. -/
 
 namespace Bingcd.Limbs.Curve25519.U32
 
 open curve25519
-
-/-- `-1 / p` modulo `2 ^ 32`, for the Montgomery reductions of the inversion. -/
-def ninv : Word 32 := Word.negInv P[0]
-
-theorem ninv_spec : (P.toNat * ninv.toNat + 1) % 2 ^ 32 = 0 :=
-  negInv_head_spec (p := P) (by decide)
-
-theorem one_lt_toNat_P : 1 < P.toNat := by
-  rw [toNat_P]
-  exact p_prime.one_lt
-
-theorem toNat_P_mod_two : P.toNat % 2 = 1 := by
-  rw [toNat_P]
-  exact p_mod_two
 
 theorem size_toNat_P_le : P.toNat.size ≤ 255 :=
   Nat.size_le.mpr (by rw [toNat_P]; exact p_lt_two_pow_255)
@@ -307,76 +253,17 @@ theorem toNat_freeze_lt {z : Limbs 32 10} (hz : Tight z) : (freeze z).toNat < P.
   rw [freeze_spec hz, toNat_P]
   exact Nat.mod_lt _ p_pos
 
-/-- The inverse of a field element: canonical form, Pornin's inversion on eight 32-bit limbs,
-then ten limbs again. -/
-def inv (z : Limbs 32 10) : Limbs 32 10 := unpack (Pornin.porninInvL 15 P ninv (freeze z))
-
-/-- The inverse of a tight element has reduced limbs, and represents the inverse in the field,
-with the inverse of `0` being `0`. -/
-theorem inv_spec {z : Limbs 32 10} (hz : Tight z) :
-    Reduced (inv z) ∧ (value (inv z) : ZMod p) = (value z : ZMod p)⁻¹ := by
-  have hy := toNat_freeze_lt hz
-  have hspec := Pornin.porninInvL_spec (K := 15) (by norm_num) (by norm_num) P ninv
-    one_lt_toNat_P toNat_P_mod_two ninv_spec (freeze z)
-  have hlt := Pornin.porninInv_lt (K := 15) (by norm_num) one_lt_toNat_P toNat_P_mod_two hy
-  rw [← hspec, toNat_P] at hlt
-  obtain ⟨hv, hb⟩ := unpack_spec (y := Pornin.porninInvL 15 P ninv (freeze z))
-    (hlt.trans p_lt_two_pow_255)
-  refine ⟨hb, ?_⟩
-  have hcast := Pornin.natCast_porninInv (p := p) (y := (freeze z).toNat) (K := 15)
-    (by norm_num) p_mod_two (by rw [← toNat_P]; exact hy)
-  rw [inv, hv, hspec, toNat_P, hcast, freeze_spec hz, ZMod.natCast_mod]
-
-/-- For this modulus of 255 bits, 32 rounds of 15 steps followed by 28 steps on single words
-compute the same limbs as the 34 rounds of `porninInvL`. -/
-theorem porninInvSL_eq {y : Limbs 32 8} (hy : y.toNat < P.toNat) :
-    Pornin.porninInvSL 15 32 28 P ninv y = Pornin.porninInvL 15 P ninv y := by
-  have hsize := size_toNat_P_le
-  exact Pornin.porninInvSL_eq (by norm_num) (by norm_num) (by norm_num) P ninv one_lt_toNat_P
-    toNat_P_mod_two ninv_spec y hy (by omega) (by omega)
-
-/-- The inverse of a tight element, with the shorter schedule. -/
-theorem inv_eq_porninInvSL {z : Limbs 32 10} (hz : Tight z) :
-    inv z = unpack (Pornin.porninInvSL 15 32 28 P ninv (freeze z)) := by
-  rw [inv, porninInvSL_eq (toNat_freeze_lt hz)]
-
-/-- The quotient of two field elements: canonical forms, Pornin's division on eight 32-bit
-limbs, then ten limbs again. It is one run of the binary gcd, with the cofactor started at
-`x`: there is no multiplication by the inverse. -/
-def div (x z : Limbs 32 10) : Limbs 32 10 :=
-  unpack (Pornin.porninDivL 15 P ninv (freeze x) (freeze z))
-
-/-- The quotient of tight elements has reduced limbs, and represents the quotient in the
-field, with a quotient by `0` being `0`. -/
-theorem div_spec {x z : Limbs 32 10} (hx : Tight x) (hz : Tight z) :
-    Reduced (div x z) ∧
-      (value (div x z) : ZMod p) = (value x : ZMod p) / (value z : ZMod p) := by
-  have hfx := toNat_freeze_lt hx
-  have hfz := toNat_freeze_lt hz
-  have hspec := Pornin.porninDivL_spec (K := 15) (by norm_num) (by norm_num) P ninv
-    one_lt_toNat_P toNat_P_mod_two ninv_spec (freeze x) (freeze z) hfx
-  have hlt := Pornin.porninDiv_lt (y := (freeze z).toNat) (K := 15) hfx
-  rw [← hspec, toNat_P] at hlt
-  obtain ⟨hv, hb⟩ := unpack_spec (y := Pornin.porninDivL 15 P ninv (freeze x) (freeze z))
-    (hlt.trans p_lt_two_pow_255)
-  refine ⟨hb, ?_⟩
-  have hcast := Pornin.natCast_porninDiv (p := p) (x := (freeze x).toNat)
-    (y := (freeze z).toNat) (K := 15) (by norm_num) p_mod_two
-    (by rw [← toNat_P]; exact hfx) (by rw [← toNat_P]; exact hfz)
-  rw [div, hv, hspec, toNat_P, hcast, freeze_spec hx, freeze_spec hz, ZMod.natCast_mod,
-    ZMod.natCast_mod]
-
-/-- For this modulus, 32 rounds followed by 28 steps on single words compute the same
-quotient as the 34 rounds of `porninDivL`. -/
-theorem porninDivSL_eq {x y : Limbs 32 8} (hx : x.toNat < P.toNat) (hy : y.toNat < P.toNat) :
-    Pornin.porninDivSL 15 32 28 P ninv x y = Pornin.porninDivL 15 P ninv x y := by
-  have hsize := size_toNat_P_le
-  exact Pornin.porninDivSL_eq (by norm_num) (by norm_num) (by norm_num) P ninv one_lt_toNat_P
-    toNat_P_mod_two ninv_spec x y hx hy (by omega) (by omega)
-
-/-- The quotient of tight elements, with the shorter schedule. -/
-theorem div_eq_porninDivSL {x z : Limbs 32 10} (hx : Tight x) (hz : Tight z) :
-    div x z = unpack (Pornin.porninDivSL 15 32 28 P ninv (freeze x) (freeze z)) := by
-  rw [div, porninDivSL_eq (toNat_freeze_lt hx) (toNat_freeze_lt hz)]
+/-- **The run of `backend/serial/u32/bingcd.rs` on a field element.** For a tight `z`, 32 rounds
+of 15 steps and 28 last steps on the canonical form of `z` and the modulus, from the cofactor
+`u`, end on `u * 2 ^ 508 / z` in the field, which is `0` when `z` is `0`. -/
+theorem porninDivR_freeze {z : Limbs 32 10} (hz : Tight z) (u : ZMod p) :
+    Pornin.porninDivR 15 32 28 P u (freeze z) = u * 2 ^ 508 / (value z : ZMod p) := by
+  have hsize : p.size ≤ 255 := by
+    rw [← toNat_P]
+    exact size_toNat_P_le
+  have h := Pornin.porninDivR_spec (K := 15) (r := 32) (T := 28) (by norm_num) (by norm_num)
+    (by norm_num) p_mod_two P toNat_P (freeze z) (by rw [← toNat_P]; exact toNat_freeze_lt hz)
+    (by omega) (by omega) u
+  rw [h, freeze_spec hz, ZMod.natCast_mod]
 
 end Bingcd.Limbs.Curve25519.U32

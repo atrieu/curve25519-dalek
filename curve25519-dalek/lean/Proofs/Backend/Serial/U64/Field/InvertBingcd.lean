@@ -13,14 +13,14 @@ open Curve25519Dalek.backend.serial.u64.field (FieldElement51)
 
 namespace Curve25519Dalek.backend.serial.u64.field.FieldElement51
 
-/-- `invert_bingcd` returns the inverse modulo `p`, and zero at zero, with limbs below `2^51`.
+/-- `invert_bingcd` returns the inverse modulo `p`, and zero at zero, with limbs below `2^52`.
 There is no condition on the limbs of the argument: `reduce` brings them below `2^51 + 2^18`,
 within the bound of `bingcd::invert`. -/
 @[step]
 theorem invert_bingcd_spec (self : FieldElement51) :
     invert_bingcd self ⦃ (r : FieldElement51) =>
       (self.asNat % p ≠ 0 → r.asNat * self.asNat % p = 1) ∧
-      (self.asNat % p = 0 → r.asNat % p = 0) ∧ r.LimbsLt 51 ⦄ := by
+      (self.asNat % p = 0 → r.asNat % p = 0) ∧ r.LimbsLt 52 ⦄ := by
   unfold invert_bingcd
   step with reduce_exact_spec as ⟨fe, hfe, hfeb⟩
   step with bingcd.invert_correct fe (fun i hi => (hfeb i hi).le.trans (by norm_num))
@@ -35,7 +35,7 @@ theorem invert_bingcd_spec (self : FieldElement51) :
 /-- `invert_bingcd` on the field elements: the inverse, with `0⁻¹ = 0`. -/
 theorem invert_bingcd_toField_spec (self : FieldElement51) :
     invert_bingcd self ⦃ (r : FieldElement51) =>
-      r.toField = self.toField⁻¹ ∧ r.LimbsLt 51 ⦄ :=
+      r.toField = self.toField⁻¹ ∧ r.LimbsLt 52 ⦄ :=
   spec_mono (invert_bingcd_spec self) fun _ ⟨h1, h0, hb⟩ => ⟨toField_inv_of_mod h1 h0, hb⟩
 
 end Curve25519Dalek.backend.serial.u64.field.FieldElement51

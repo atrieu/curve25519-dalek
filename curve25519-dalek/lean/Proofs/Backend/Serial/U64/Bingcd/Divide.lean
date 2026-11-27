@@ -1,54 +1,43 @@
 module
 public import Curve25519Dalek.Funs
 public import Proofs.Helpers.Bingcd
-import Proofs.Backend.Serial.U64.Bingcd.Freeze
-import Proofs.Backend.Serial.U64.Bingcd.Ninv
-import Proofs.Backend.Serial.U64.Bingcd.P
-import Proofs.Backend.Serial.U64.Bingcd.PorninDiv
-import Proofs.Backend.Serial.U64.Bingcd.Rounds
-import Proofs.Backend.Serial.U64.Bingcd.Unpack
+import Proofs.Backend.Serial.U64.Bingcd.Scale
+import Proofs.Backend.Serial.U64.Bingcd.ScaledDiv
+import Proofs.Backend.Serial.U64.Field.Mul
+import Proofs.Helpers.ToField
 public section
 
 open Aeneas Aeneas.Std Result
 open Bingcd
+open Curve25519Dalek.Shared0FieldElement51.Insts
+  (CoreOpsArithMulSharedAFieldElement51FieldElement51.mul_spec)
 
 namespace Curve25519Dalek.backend.serial.u64.bingcd
 
-/-- **The translated field division**: canonical forms, Pornin's division on four 64-bit limbs
-with 15 rounds and 43 last steps, and five 51-bit limbs again. On limbs of at most
-`2 ^ 51 + 2 ^ 23` this is `Limbs.Curve25519.div` (`divide_eq_div`). -/
+/-- **The translated field division** is the run of `scaled_div` from the cofactor
+`x * 2 ^ -508`. -/
 @[step]
-theorem divide_spec (x z : Array U64 5#usize) :
-    divide x z ⦃ r => L5 r = Limbs.Curve25519.unpack
-      (Pornin.porninDivSL 31 15 43 Limbs.Curve25519.P Limbs.Curve25519.ninv
-        (Limbs.Curve25519.freeze (L5 x)) (Limbs.Curve25519.freeze (L5 z))) ⦄ := by
+theorem divide_spec (x : field.FieldElement51) (z : Array U64 5#usize) (hx : x.LimbsLt 54) :
+    divide x z ⦃ (r : field.FieldElement51) =>
+      r.toField = Pornin.porninDivR 31 15 43 Limbs.Curve25519.P (x.toField * SCALE.toField)
+        (Limbs.Curve25519.freeze (L5 z)) ∧ r.LimbsLt 52 ⦄ := by
   unfold divide
-  step*
-  simp only [r_post, a2_post, a1_post, a_post, L4_P, NINV_bv, ROUNDS_val, U64.bv]
+  have hS : SCALE.LimbsLt 54 := fun j hj => lt_trans (SCALE_limbsLt j hj) (by norm_num)
+  step with CoreOpsArithMulSharedAFieldElement51FieldElement51.mul_spec x SCALE hx hS
+    as ⟨fe, hfe, hfeb⟩
+  step with scaled_div_spec fe z hfeb as ⟨r, hr, hrb⟩
+  exact ⟨by rw [hr, field.FieldElement51.toField_mul_of_mod hfe], hrb⟩
 
-/-- On limbs of at most `2 ^ 51 + 2 ^ 23`, the translated field division is
-`Limbs.Curve25519.div`. -/
-theorem divide_eq_div (x z : Array U64 5#usize) (hx : Limbs.Curve25519.Tight (L5 x))
-    (hz : Limbs.Curve25519.Tight (L5 z)) :
-    divide x z ⦃ r => L5 r = Limbs.Curve25519.div (L5 x) (L5 z) ⦄ := by
-  refine WP.spec_mono (divide_spec x z) fun r hr => ?_
-  rw [hr, Limbs.Curve25519.div_eq_porninDivSL hx hz]
-
-/-- **Correctness of `bingcd::divide`.** On limbs of at most `2 ^ 51 + 2 ^ 23`, the function
-never panics, its result has limbs below `2 ^ 51`, and it represents the quotient in the field
-of integers modulo `p` of the elements its arguments represent (with a quotient by zero being
-zero). -/
-theorem divide_correct (x z : field.FieldElement51)
-    (hx : ∀ i : ℕ, i < 5 → x[i]!.val ≤ 2 ^ 51 + 2 ^ 23)
+/-- **Correctness of `bingcd::divide`.** For `x` with limbs below `2 ^ 54` and `z` with limbs
+of at most `2 ^ 51 + 2 ^ 23`, the function never panics, its result has limbs below `2 ^ 52`,
+and it represents the quotient in the field of integers modulo `p` of the elements its
+arguments represent (with a quotient by zero being zero). -/
+theorem divide_correct (x z : field.FieldElement51) (hx : x.LimbsLt 54)
     (hz : ∀ i : ℕ, i < 5 → z[i]!.val ≤ 2 ^ 51 + 2 ^ 23) :
     divide x z ⦃ (r : field.FieldElement51) =>
-      r.toField = x.toField / z.toField ∧ r.LimbsLt 51 ⦄ := by
-  refine WP.spec_mono (divide_eq_div x z (tight_L5 hx) (tight_L5 hz)) fun r hr => ?_
-  obtain ⟨hb, hv⟩ := Limbs.Curve25519.div_spec (tight_L5 hx) (tight_L5 hz)
-  rw [← hr] at hb hv
-  rw [value_L5, value_L5, value_L5] at hv
-  rw [field.FieldElement51.toField_def r, field.FieldElement51.toField_def x,
-    field.FieldElement51.toField_def z]
-  exact ⟨hv, limbsLt_of_bounded hb⟩
+      r.toField = x.toField / z.toField ∧ r.LimbsLt 52 ⦄ := by
+  refine WP.spec_mono (divide_spec x z hx) fun r ⟨hr, hb⟩ => ⟨?_, hb⟩
+  rw [hr, Limbs.Curve25519.porninDivR_freeze (tight_L5 hz), mul_assoc, SCALE_toField, mul_one,
+    value_L5, ← field.FieldElement51.toField_def]
 
 end Curve25519Dalek.backend.serial.u64.bingcd
